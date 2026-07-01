@@ -1,6 +1,7 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildApp } from './app.js';
 import { closeDb, initDb, resetDbHandle } from './db/index.js';
+import * as llmService from './services/aiService.js';
 
 /** Parses a JSON response body from Fastify inject. */
 function jsonBody<T>(payload: string): T {
@@ -182,5 +183,93 @@ describe('school chat api', () => {
     });
 
     expect(messageResponse.statusCode).toBe(400);
+  });
+});
+
+describe('ai personalities', () => {
+  beforeEach(async () => {
+    closeDb();
+    resetDbHandle();
+    initDb(':memory:');
+    vi.spyOn(llmService, 'chatWithAi').mockResolvedValue('Mock tutor reply.');
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('lists seeded teacher personalities without system prompts', async () => {
+    const app = await buildApp();
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/ai/personalities',
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = jsonBody<{
+      personalities: Array<{
+        slug: string;
+        name: string;
+        expertiseLabels: string[];
+        openingMessage?: string;
+        systemPrompt?: string;
+        isDefault?: boolean;
+      }>;
+    }>(response.body);
+
+    expect(body.personalities.length).toBe(4);
+    expect(body.personalities.find((entry) => entry.slug === 'general')?.name).toBe('Pradeep Sir');
+    expect(body.personalities.find((entry) => entry.slug === 'general')?.isDefault).toBe(true);
+    expect(body.personalities.find((entry) => entry.slug === 'math')?.openingMessage).toBeTruthy();
+    expect(body.personalities.find((entry) => entry.slug === 'math')?.expertiseLabels).toEqual([
+      'Math',
+      'Puzzles',
+    ]);
+    expect(body.personalities.find((entry) => entry.slug === 'thinking')?.expertiseLabels).toEqual([
+      'Decision Making',
+      'Judgement',
+    ]);
+    expect(body.personalities.every((entry) => entry.systemPrompt === undefined)).toBe(true);
+  });
+
+  it('uses the selected teacher personality for chat requests', async () => {
+    const app = await buildApp();
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/ai/chat',
+      payload: {
+        mode: 'teacher',
+        personalityId: 'math',
+        messages: [{ role: 'user', content: 'What is 2+2?' }],
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = jsonBody<{
+      reply: { content: string };
+      personality: { slug: string; name: string };
+    }>(response.body);
+
+    expect(body.personality.slug).toBe('math');
+    expect(body.reply.content).toBe('Mock tutor reply.');
+    expect(llmService.chatWithAi).toHaveBeenCalled();
+  });
+
+  it('rejects chat requests with an unknown personality', async () => {
+    const app = await buildApp();
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/ai/chat',
+      payload: {
+        mode: 'teacher',
+        personalityId: 'nonexistent',
+        messages: [{ role: 'user', content: 'Hello' }],
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
   });
 });

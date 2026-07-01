@@ -6,10 +6,18 @@ import './MessageInput.css';
 interface MessageInputProps {
   onSend: (payload: { content?: string; imageDataUrl?: string }) => void;
   disabled?: boolean;
+  placeholder?: string;
+  /** When false, hides the image attach button (e.g. AI chats). */
+  showAttach?: boolean;
 }
 
 /** WhatsApp-style message composer with pill input and circular send. */
-export function MessageInput({ onSend, disabled }: MessageInputProps) {
+export function MessageInput({
+  onSend,
+  disabled,
+  placeholder = 'Message',
+  showAttach = true,
+}: MessageInputProps) {
   const [text, setText] = useState('');
   const [error, setError] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
@@ -49,26 +57,30 @@ export function MessageInput({ onSend, disabled }: MessageInputProps) {
     <form className="message-input" onSubmit={handleSubmit}>
       {error && <p className="error-text message-input__error">{error}</p>}
       <div className="message-input__row">
-        <button
-          type="button"
-          className="message-input__attach"
-          onClick={() => fileRef.current?.click()}
-          disabled={disabled}
-          aria-label="Attach image"
-        >
-          <Paperclip size={22} />
-        </button>
-        <input
-          type="file"
-          ref={fileRef}
-          accept={ALLOWED_IMAGE_TYPES.join(',')}
-          hidden
-          onChange={handleImage}
-        />
+        {showAttach && (
+          <>
+            <button
+              type="button"
+              className="message-input__attach"
+              onClick={() => fileRef.current?.click()}
+              disabled={disabled}
+              aria-label="Attach image"
+            >
+              <Paperclip size={22} />
+            </button>
+            <input
+              type="file"
+              ref={fileRef}
+              accept={ALLOWED_IMAGE_TYPES.join(',')}
+              hidden
+              onChange={handleImage}
+            />
+          </>
+        )}
         <div className="message-input__field">
           <input
             type="text"
-            placeholder="Message"
+            placeholder={placeholder}
             value={text}
             onChange={(e) => setText(e.target.value)}
             disabled={disabled}

@@ -31,7 +31,7 @@ export function LoginPage() {
     <div className="auth-page">
       <div className="auth-card">
         <h1>School Chat</h1>
-        <p>Welcome back — log in to continue.</p>
+        <p>Welcome back - log in to continue.</p>
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label htmlFor="username">Username</label>

@@ -1,5 +1,4 @@
 import { Link } from 'react-router-dom';
-import { aiService } from '../services/aiService';
 import './OnboardingEmptyState.css';
 
 interface OnboardingEmptyStateProps {
@@ -16,7 +15,7 @@ export function OnboardingEmptyState({ displayName, compact = false }: Onboardin
       <h1 className="onboarding-empty__title">{greeting}</h1>
       <p className="onboarding-empty__text">
         {compact
-          ? 'Add school friends to start messaging. Tap AI above to chat for fun, or use Learn in the menu to study.'
+          ? 'Add school friends to start messaging. Tap AI above to chat for fun, or use Teacher in the menu to study.'
           : 'Add school friends to start chatting. You can also try the AI helper to learn something new or just chat for fun.'}
       </p>
       <div className="onboarding-empty__actions">
@@ -24,8 +23,8 @@ export function OnboardingEmptyState({ displayName, compact = false }: Onboardin
           Add Friend
         </Link>
         {!compact && (
-          <Link to={aiService.getLearnChatPath()} className="neon-btn neon-btn--ghost">
-            Learn with AI
+          <Link to="/ai" className="neon-btn neon-btn--ghost">
+            Teacher AI
           </Link>
         )}
       </div>

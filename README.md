@@ -30,7 +30,7 @@ The Vite dev server proxies `/api` requests to the API.
 2. Register with invite code `SCHOOL01`
 3. Generate an invite code in Settings and share it with a friend on another device
 4. Add friends by username, accept requests, and start chatting
-5. Use the AI tab for Learn or Chat mode (requires LLM keys in `apps/api/.env`)
+5. Use the **Teacher** tab to pick a tutor, or the pinned **AI** chat on Chats for casual conversation (requires LLM keys in `apps/api/.env`)
 
 ## Tests
 
@@ -80,6 +80,6 @@ cp /var/lib/schoolchat/data.db /var/backups/schoolchat-$(date +%F).db
 
 ## Data notes
 
-- Accounts, friends, and messages are stored in the shared SQLite database on the server
+- Accounts, friends, messages, and teacher personalities are stored in the shared SQLite database on the server
 - AI conversation history stays in browser localStorage for now
 - Image uploads are stored as base64 in SQLite and limited to about 2 MB

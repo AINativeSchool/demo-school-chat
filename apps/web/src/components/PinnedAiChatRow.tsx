@@ -9,7 +9,7 @@ import './PinnedAiChatRow.css';
 
 /** Builds the preview line for the pinned casual AI chat row. */
 function previewText(lastMessage?: { role: string; content: string }): string {
-  if (!lastMessage) return 'Chat for fun — tap to start';
+  if (!lastMessage) return 'Chat for fun - tap to start';
 
   const prefix = lastMessage.role === 'user' ? 'You: ' : '';
   return `${prefix}${lastMessage.content}`;

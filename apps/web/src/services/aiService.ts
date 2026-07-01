@@ -1,4 +1,5 @@
-import type { AiConversation, AiMessage, AiMode } from '@school-chat/shared';
+import type { AiConversation, AiMessage, AiMode, AiPersonality } from '@school-chat/shared';
+import { apiClient } from '../api/client';
 import { authService } from './authService';
 import { storageService } from '../storage/storageService';
 
@@ -9,22 +10,45 @@ export class AiError extends Error {
   }
 }
 
-const AI_API_URL = import.meta.env.VITE_AI_API_URL ?? '/api';
-
 export const CASUAL_CHAT_TITLE = 'AI';
-export const LEARN_CHAT_TITLE = 'Learn with AI';
+
+/** Saves the coach's opening message when a teacher thread has no messages yet. */
+function seedOpeningMessageIfEmpty(conversationId: string, content: string): boolean {
+  if (storageService.getAiMessages(conversationId).length > 0) return false;
+
+  const message: AiMessage = {
+    id: storageService.generateId(),
+    aiConversationId: conversationId,
+    role: 'assistant',
+    content,
+    createdAt: new Date().toISOString(),
+  };
+  storageService.appendAiMessage(conversationId, message);
+  return true;
+}
 
 /** Manages AI conversations locally and proxies chat requests to the API. */
 export const aiService = {
-  createConversation(mode: AiMode, title?: string): AiConversation {
+  async fetchPersonalities(): Promise<AiPersonality[]> {
+    const data = await apiClient.get<{ personalities: AiPersonality[] }>('/ai/personalities');
+    return data.personalities;
+  },
+
+  createConversation(
+    mode: AiMode,
+    title?: string,
+    personality?: Pick<AiPersonality, 'slug' | 'name'>,
+  ): AiConversation {
     const user = authService.getCurrentUser();
     if (!user) throw new AiError('Not logged in.');
 
     const conversation: AiConversation = {
       id: storageService.generateId(),
       userId: user.id,
-      title: title ?? (mode === 'learn' ? 'Learn chat' : 'Casual chat'),
+      title: title ?? (mode === 'teacher' ? 'Teacher chat' : 'Casual chat'),
       mode,
+      personalityId: personality?.slug,
+      personalityName: personality?.name,
       createdAt: new Date().toISOString(),
     };
 
@@ -44,31 +68,71 @@ export const aiService = {
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   },
 
-  /** Returns the default learn-mode thread, creating it on first access. */
-  getOrCreateLearnChat(): AiConversation {
+  /** Returns one ongoing teacher thread per personality, creating it on first access. */
+  getOrCreateTeacherChat(personality: AiPersonality): AiConversation {
     const user = authService.getCurrentUser();
     if (!user) throw new AiError('Not logged in.');
 
-    const learnConversations = storageService
+    const existing = storageService
       .getAiConversations()
-      .filter((c) => c.userId === user.id && c.mode === 'learn');
+      .find(
+        (c) =>
+          c.userId === user.id &&
+          c.mode === 'teacher' &&
+          c.personalityId === personality.slug,
+      );
 
-    if (learnConversations.length > 0) {
-      return learnConversations.sort((a, b) => {
-        const aMessages = storageService.getAiMessages(a.id);
-        const bMessages = storageService.getAiMessages(b.id);
-        const aTime = aMessages[aMessages.length - 1]?.createdAt ?? a.createdAt;
-        const bTime = bMessages[bMessages.length - 1]?.createdAt ?? b.createdAt;
-        return bTime.localeCompare(aTime);
-      })[0];
+    if (existing) {
+      if (personality.openingMessage) {
+        seedOpeningMessageIfEmpty(existing.id, personality.openingMessage);
+      }
+      return existing;
     }
 
-    return this.createConversation('learn', LEARN_CHAT_TITLE);
+    const conversation = this.createConversation('teacher', personality.name, personality);
+    if (personality.openingMessage) {
+      seedOpeningMessageIfEmpty(conversation.id, personality.openingMessage);
+    }
+    return conversation;
   },
 
-  /** Route path for the pinned learn-mode AI chat. */
-  getLearnChatPath(): string {
-    return `/ai/${this.getOrCreateLearnChat().id}`;
+  /** Adds a coaching opener to empty teacher threads (e.g. legacy or missed on create). */
+  async ensureTeacherOpening(conversationId: string): Promise<boolean> {
+    const conversation = this.getConversation(conversationId);
+    if (!conversation || conversation.mode !== 'teacher') return false;
+    if (this.getMessages(conversationId).length > 0) return false;
+
+    const personalities = await this.fetchPersonalities();
+
+    // Re-check after async fetch - avoids duplicate openers under React Strict Mode.
+    if (this.getMessages(conversationId).length > 0) return false;
+
+    const personality =
+      personalities.find((entry) => entry.slug === conversation.personalityId) ??
+      personalities.find((entry) => entry.isDefault);
+
+    if (!personality?.openingMessage) return false;
+
+    return seedOpeningMessageIfEmpty(conversationId, personality.openingMessage);
+  },
+
+  /** Teacher threads with last message preview, sorted by recent activity. */
+  listTeacherConversations(): Array<{ conversation: AiConversation; lastMessage?: AiMessage }> {
+    const user = authService.getCurrentUser();
+    if (!user) return [];
+
+    return storageService
+      .getAiConversations()
+      .filter((c) => c.userId === user.id && c.mode === 'teacher')
+      .map((conversation) => {
+        const messages = this.getMessages(conversation.id);
+        return { conversation, lastMessage: messages[messages.length - 1] };
+      })
+      .sort((a, b) => {
+        const aTime = a.lastMessage?.createdAt ?? a.conversation.createdAt;
+        const bTime = b.lastMessage?.createdAt ?? b.conversation.createdAt;
+        return bTime.localeCompare(aTime);
+      });
   },
 
   /** Returns the pinned casual chat thread, creating it on first access. */
@@ -136,18 +200,33 @@ export const aiService = {
       .slice(-20)
       .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
 
-    const response = await fetch(`${AI_API_URL}/ai/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode: conversation.mode, messages: history }),
-    });
+    const payload: {
+      mode: AiMode;
+      messages: Array<{ role: 'user' | 'assistant'; content: string }>;
+      personalityId?: string;
+    } = {
+      mode: conversation.mode,
+      messages: history,
+    };
 
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({}));
-      throw new AiError(body.error ?? 'AI service unavailable. Is the API running?');
+    if (conversation.mode === 'teacher' && conversation.personalityId) {
+      payload.personalityId = conversation.personalityId;
     }
 
-    const data = await response.json();
+    const data = await apiClient.post<{
+      reply: { content: string };
+      personality?: { name: string };
+    }>('/ai/chat', payload);
+
+    if (data.personality?.name && conversation.personalityName !== data.personality.name) {
+      const conversations = storageService.getAiConversations().map((entry) =>
+        entry.id === conversation.id
+          ? { ...entry, personalityName: data.personality!.name, title: data.personality!.name }
+          : entry,
+      );
+      storageService.saveAiConversations(conversations);
+    }
+
     const assistantMessage: AiMessage = {
       id: storageService.generateId(),
       aiConversationId,

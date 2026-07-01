@@ -22,9 +22,9 @@ A private messaging app for 1:1 chat with school friends, plus an AI chatbot for
 
 ## 2. Users
 
-- **Students** — message friends, share images, get notifications
-- **Learners** — ask the AI to explain topics or quiz them
-- **Casual users** — chat with the AI for entertainment
+- **Students** - message friends, share images, get notifications
+- **Learners** - ask the AI to explain topics or quiz them
+- **Casual users** - chat with the AI for entertainment
 
 ---
 
@@ -56,23 +56,34 @@ A private messaging app for 1:1 chat with school friends, plus an AI chatbot for
 ### Notifications
 
 - ✅ In-app unread count per conversation
-- Push notifications (deferred — in-app only for v1)
+- Push notifications (deferred - in-app only for v1)
 
 ### AI Chatbot
 
 - ✅ Separate section from friend chats (clearly labeled as AI)
 - ✅ Text in / text out
-- ✅ Two modes: **Learn** (explain topics, answer questions) and **Chat** (casual conversation)
+- ✅ Two modes: **Teacher** (explain topics, answer questions) and **Chat** (casual conversation)
 - ✅ Conversation history saved so users can continue later (browser localStorage)
-- ✅ Start a new AI conversation anytime (Learn tab) or continue casual chat (pinned on Chats)
+- ✅ Start a new teacher session from the Teacher tab or continue casual chat (pinned on Chats)
 - ✅ Disclaimer that AI can make mistakes
 - Age-appropriate responses via system prompts (no separate moderation layer yet)
 
+#### Teacher AI personalities
+
+- ✅ Students choose an AI Twin on the **Teacher** page; each personality has a **server-controlled system prompt** never sent to the browser
+- ✅ **Named AI Twin teachers** - Pradeep Sir (AI, Startups), Praveen Sir (Math, Puzzles), Surya Sir (Coding, Software), Mayank Sir (Decision Making, Judgement); subtle **AI Twin** UI label after each name
+- ✅ **Default** - Pradeep Sir is the default when no personality is specified
+- ✅ **Server-managed (v1)** - personalities defined via SQLite seed data; edit seed and redeploy to change prompts (admin API deferred)
+- ✅ **Student-facing picker** - Teacher page shows personality cards; tap to start or resume a chat with that tutor
+- ✅ **Per-personality history** - one ongoing thread per personality; recent sessions listed on Teacher page
+- ✅ **Coaching openers** - each teacher personality sends a suggestive welcome with starter options (no blank canvas)
+- ✅ **Casual Chat unchanged** - personalities apply only to Teacher mode
+
 ### Onboarding & UX
 
-- ✅ Empty state when user has no friends — CTAs to add a friend or chat with AI
+- ✅ Empty state when user has no friends - CTAs to add a friend or chat with AI
 - ✅ WhatsApp-familiar patterns: chat list, search, contact rows, message bubbles, bottom nav
-- ✅ **Neon theme** — dark background with bright neon accents and subtle glow effects
+- ✅ **Neon theme** - dark background with bright neon accents and subtle glow effects
 - ✅ Full-width chat homepage (matches chat detail layout)
 
 ---
@@ -81,7 +92,7 @@ A private messaging app for 1:1 chat with school friends, plus an AI chatbot for
 
 - ✅ HTTPS everywhere when deployed (reverse proxy documented in README)
 - ✅ Passwords hashed with bcrypt before saving to server database
-- ✅ Invite-only sign-up — no public user directory
+- ✅ Invite-only sign-up - no public user directory
 - ✅ JWT bearer tokens for authenticated API requests
 - Block a user (API only; UI not wired yet)
 - AI conversation history stays in browser localStorage (not synced to server)
@@ -92,14 +103,14 @@ A private messaging app for 1:1 chat with school friends, plus an AI chatbot for
 
 **Navigation**
 
-1. **Chats** — list of 1:1 conversations with unread badges; pinned casual AI chat at top
-2. **Friends** — add and manage friends
-3. **AI** — Learn-mode bot conversations
-4. **Settings** — account, invite codes, logout
+1. **Chats** - list of 1:1 conversations with unread badges; pinned casual AI chat at top
+2. **Friends** - add and manage friends
+3. **Teacher (AI)** - pick a tutor personality, then chat; resume past teacher sessions
+4. **Settings** - account, invite codes, logout
 
 **Design**
 
-- ✅ **Neon theme** — dark background with bright neon accents and subtle glow effects
+- ✅ **Neon theme** - dark background with bright neon accents and subtle glow effects
 - ✅ Simple, familiar chat layout (WhatsApp-like structure, neon styling)
 - ✅ AI section visually distinct from friend chats (magenta accent vs cyan for friends)
 
@@ -123,7 +134,8 @@ A private messaging app for 1:1 chat with school friends, plus an AI chatbot for
 - ✅ Message history
 - ✅ Image sharing
 - ✅ Unread notifications (in-app)
-- ✅ AI chat (learn + casual) with saved history
+- ✅ AI chat (teacher + casual) with saved history
+- ✅ Teacher personalities - server-seeded tutors with specialized system prompts
 - ✅ Mobile-friendly web UI
 - ✅ Neon theme with full-width chat layout
 - ✅ Onboarding for users with no friends
@@ -141,6 +153,7 @@ A private messaging app for 1:1 chat with school friends, plus an AI chatbot for
 | Persistence | SQLite on server for app data; localStorage for AI history |
 | Cross-device sync | REST API + HTTP polling (simplest approach) |
 | Hosting | Single VPS with Fastify serving API + optional static web |
+| Teacher AI personalities | SQLite seed data; system prompts never exposed to client; admin API deferred |
 
 ---
 
@@ -163,3 +176,7 @@ A private messaging app for 1:1 chat with school friends, plus an AI chatbot for
 - ✅ As a student, I want to invite friends with a code so only people we know join.
 - ✅ As a student, I want to clearly see when I'm talking to the AI, not a real person.
 - ✅ As a new user, I want guidance when I have no friends yet so I know what to do next.
+- ✅ As a student, I want to pick a teacher personality (e.g. math, science, writing) so the AI teaches in a way that fits my subject.
+- ✅ As a student, I want a general tutor option so I can ask about anything without choosing a specialty first.
+- ✅ As a student, I want my past chats with each tutor kept separate so I can continue where I left off.
+- As an admin, I want to add or update tutor personalities and their prompts on the server without changing the app code (deferred - edit SQLite seed for now).

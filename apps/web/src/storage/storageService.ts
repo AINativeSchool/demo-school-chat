@@ -128,7 +128,34 @@ export const storageService = {
   },
 
   getAiConversations(): AiConversation[] {
-    return readJson<AiConversation[]>(STORAGE_KEYS.aiConversations, []);
+    const raw = readJson<AiConversation[]>(STORAGE_KEYS.aiConversations, []);
+    let migrated = false;
+
+    const conversations = raw.map((conversation) => {
+      let next = conversation;
+
+      if ((next.mode as string) === 'learn') {
+        migrated = true;
+        next = { ...next, mode: 'teacher' };
+      }
+
+      if (next.mode === 'teacher' && !next.personalityId) {
+        migrated = true;
+        next = {
+          ...next,
+          personalityId: 'general',
+          personalityName: next.personalityName ?? next.title ?? 'Pradeep Sir',
+        };
+      }
+
+      return next;
+    });
+
+    if (migrated) {
+      writeJson(STORAGE_KEYS.aiConversations, conversations);
+    }
+
+    return conversations;
   },
 
   saveAiConversations(conversations: AiConversation[]): void {
@@ -151,7 +178,7 @@ export const storageService = {
     writeJson(STORAGE_KEYS.aiMessages, map);
   },
 
-  /** Clear all data — useful for tests. */
+  /** Clear all data - useful for tests. */
   clearAll(): void {
     Object.values(STORAGE_KEYS).forEach((key) => localStorage.removeItem(key));
   },

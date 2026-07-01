@@ -197,7 +197,7 @@ export function FriendsPage() {
                   <div className="avatar avatar-sm">{user.displayName.charAt(0).toUpperCase()}</div>
                   <div className="contact-row__body">
                     <div className="contact-row__name">{user.displayName}</div>
-                    <div className="contact-row__subtitle">Request sent — pending</div>
+                    <div className="contact-row__subtitle">Request sent - pending</div>
                   </div>
                 </div>
               ))}

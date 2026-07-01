@@ -4,7 +4,24 @@ export type FriendshipStatus = 'pending' | 'accepted' | 'blocked';
 
 export type MessageStatus = 'sent' | 'delivered' | 'read';
 
-export type AiMode = 'learn' | 'chat';
+export type AiMode = 'teacher' | 'chat';
+
+/** Public tutor metadata - safe to send to the browser (no system prompt). */
+export interface AiPersonality {
+  id: string;
+  slug: string;
+  name: string;
+  /** @deprecated Use expertiseLabels - kept for older clients. */
+  description: string;
+  /** Short expertise tags (one or two words each) shown on the Teacher picker. */
+  expertiseLabels: string[];
+  /** Coaching opener shown when a new teacher thread starts. */
+  openingMessage?: string;
+  accentColor?: string;
+  icon?: string;
+  isDefault: boolean;
+  sortOrder: number;
+}
 
 export type AiRole = 'user' | 'assistant' | 'system';
 
@@ -69,6 +86,10 @@ export interface AiConversation {
   userId: string;
   title: string;
   mode: AiMode;
+  /** Personality slug for teacher-mode threads, e.g. "math". */
+  personalityId?: string;
+  /** Cached display name for chat headers. */
+  personalityName?: string;
   createdAt: string;
 }
 

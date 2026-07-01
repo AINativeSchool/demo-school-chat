@@ -8,6 +8,16 @@
   padding: 0;
 }
 
+/** Hide scrollbars while keeping scroll behaviour. */
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+*::-webkit-scrollbar {
+  display: none;
+}
+
 html,
 body,
 #root {
@@ -93,7 +103,7 @@ textarea:focus {
   width: 100%;
 }
 
-/** Full-viewport chats list — matches the open thread layout. */
+/** Full-viewport chats list - matches the open thread layout. */
 .chat-home {
   display: flex;
   flex-direction: column;
@@ -460,7 +470,7 @@ textarea:focus {
   transition: all 0.15s;
 }
 
-.mode-btn.learn.active {
+.mode-btn.teacher.active {
   border-color: var(--neon-cyan);
   color: var(--neon-cyan);
   box-shadow: var(--glow-cyan);
@@ -471,7 +481,7 @@ textarea:focus {
   color: var(--neon-purple);
 }
 
-.learn-ai-intro {
+.teacher-ai-intro {
   color: var(--text-muted);
   font-size: 0.875rem;
   line-height: 1.5;
