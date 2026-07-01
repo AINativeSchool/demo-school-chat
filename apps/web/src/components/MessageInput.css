@@ -1,0 +1,27 @@
+.message-input {
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+}
+
+.message-input__row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.message-input__row input[type='text'] {
+  flex: 1;
+}
+
+.message-input__attach {
+  color: var(--neon-cyan);
+  padding: 0.5rem;
+  display: flex;
+  align-items: center;
+}
+
+.message-input__send {
+  width: auto !important;
+  padding: 0.625rem 0.875rem !important;
+}

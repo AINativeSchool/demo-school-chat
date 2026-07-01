@@ -1,0 +1,43 @@
+.ai-mode-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.ai-mode-indicator.learn {
+  color: var(--neon-cyan);
+}
+
+.ai-mode-indicator.chat {
+  color: var(--neon-purple);
+}
+
+.ai-chat-bubble {
+  max-width: 85%;
+  padding: 0.625rem 0.875rem;
+  border-radius: var(--radius);
+  word-break: break-word;
+}
+
+.ai-chat-bubble.user {
+  align-self: flex-end;
+  background: rgba(0, 245, 255, 0.08);
+  border: 1px solid var(--neon-cyan);
+}
+
+.ai-chat-bubble.assistant {
+  align-self: flex-start;
+  background: rgba(255, 0, 170, 0.08);
+  border: 1px solid var(--neon-magenta);
+  box-shadow: var(--glow-magenta);
+}
+
+.ai-loading {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  padding: 0.5rem 1rem;
+}
