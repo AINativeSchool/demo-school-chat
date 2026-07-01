@@ -1,12 +1,29 @@
-import { useMemo } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import type { ConversationSummary } from '@school-chat/shared';
 import { chatService } from '../services/chatService';
-import { useLocalStorageSync } from './useLocalStorage';
+import { usePolling } from './usePolling';
 
-/** Loads conversation list and refreshes on storage changes. */
+/** Loads conversation list and refreshes on a polling interval. */
 export function useConversations() {
-  const { version, bump } = useLocalStorageSync();
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const conversations = useMemo(() => chatService.listConversations(), [version]);
+  const refresh = useCallback(async () => {
+    try {
+      const next = await chatService.listConversations();
+      setConversations(next);
+    } catch {
+      setConversations([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  return { conversations, refresh: bump };
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  usePolling(refresh, 4000);
+
+  return { conversations, loading, refresh };
 }

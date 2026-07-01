@@ -1,54 +1,69 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
+import type { Message, PublicUser } from '@school-chat/shared';
 import { ChatBubble } from '../components/ChatBubble';
 import { MessageInput } from '../components/MessageInput';
 import { useAuth } from '../hooks/useAuth';
-import { useLocalStorageSync } from '../hooks/useLocalStorage';
-import { chatService } from '../services/chatService';
-import { ChatError } from '../services/chatService';
-import { storageService } from '../storage/storageService';
+import { useMessagePolling } from '../hooks/usePolling';
+import { chatService, ChatError } from '../services/chatService';
 
 /** Single 1:1 chat thread view. */
 export function ChatPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
-  const { version, bump } = useLocalStorageSync();
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [otherUser, setOtherUser] = useState<PublicUser | null>(null);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const bottomRef = useRef<HTMLDivElement>(null);
 
-  const conversation = useMemo(
-    () => (id ? chatService.getConversation(id) : undefined),
-    [id, version],
-  );
+  const loadThread = useCallback(async () => {
+    if (!id) return;
 
-  const messages = useMemo(
-    () => (id ? chatService.getMessages(id) : []),
-    [id, version],
-  );
-
-  const otherUser = useMemo(() => {
-    if (!conversation || !user) return null;
-    const otherId = conversation.userAId === user.id ? conversation.userBId : conversation.userAId;
-    return storageService.getUsers().find((u) => u.id === otherId) ?? null;
-  }, [conversation, user, version]);
+    try {
+      const [allMessages, thread] = await Promise.all([
+        chatService.getMessages(id),
+        chatService.getConversationWithUser(id),
+      ]);
+      setMessages(allMessages);
+      setOtherUser(thread?.otherUser ?? null);
+      await chatService.markAsRead(id);
+    } catch {
+      setOtherUser(null);
+      setMessages([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
 
   useEffect(() => {
-    if (id) chatService.markAsRead(id);
-    bump();
-  }, [id, bump]);
+    setLoading(true);
+    loadThread();
+  }, [loadThread]);
 
-  const handleSend = (payload: { content?: string; imageDataUrl?: string }) => {
+  useMessagePolling(id, loadThread);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const handleSend = async (payload: { content?: string; imageDataUrl?: string }) => {
     if (!id) return;
     setError('');
     try {
-      chatService.sendMessage(id, payload);
-      bump();
+      const message = await chatService.sendMessage(id, payload);
+      setMessages((current) => [...current, message]);
     } catch (err) {
       setError(err instanceof ChatError ? err.message : 'Failed to send message.');
     }
   };
 
-  if (!conversation || !otherUser) {
+  if (loading) {
+    return <div className="page empty-state">Loading chat...</div>;
+  }
+
+  if (!otherUser) {
     return (
       <div className="page">
         <p className="empty-state">Conversation not found.</p>
@@ -60,21 +75,25 @@ export function ChatPage() {
   return (
     <div className="chat-page chat-page-full">
       <div className="chat-header">
-        <Link to="/chats" aria-label="Back">
+        <Link to="/chats" className="chat-header__back" aria-label="Back">
           <ArrowLeft size={22} />
         </Link>
         <div className="avatar avatar-sm">{otherUser.displayName.charAt(0).toUpperCase()}</div>
-        <span>{otherUser.displayName}</span>
+        <div className="chat-header__info">
+          <span className="chat-header__name">{otherUser.displayName}</span>
+          <span className="chat-header__subtitle">@{otherUser.username}</span>
+        </div>
       </div>
-      <div className="chat-messages">
+      <div className="chat-messages chat-messages--wallpaper">
         {messages.length === 0 && (
-          <p className="empty-state">Say hello to {otherUser.displayName}!</p>
+          <p className="chat-messages__empty">Messages are end-to-end styled. Say hi to {otherUser.displayName}!</p>
         )}
         {messages.map((msg) => (
           <ChatBubble key={msg.id} message={msg} isOwn={msg.senderId === user?.id} />
         ))}
+        <div ref={bottomRef} />
       </div>
-      {error && <p className="error-text" style={{ padding: '0 1rem' }}>{error}</p>}
+      {error && <p className="error-text chat-page__error">{error}</p>}
       <MessageInput onSend={handleSend} />
     </div>
   );

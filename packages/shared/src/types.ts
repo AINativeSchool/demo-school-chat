@@ -10,7 +10,6 @@ export type AiRole = 'user' | 'assistant' | 'system';
 
 export interface User {
   id: string;
-  email: string;
   passwordHash: string;
   displayName: string;
   username: string;
@@ -18,9 +17,17 @@ export interface User {
   createdAt: string;
 }
 
+/** User record safe to send to clients (no password hash). */
+export type PublicUser = Omit<User, 'passwordHash'>;
+
+export interface AuthResponse {
+  token: string;
+  user: PublicUser;
+}
+
 export interface Session {
   userId: string;
-  email: string;
+  username: string;
   displayName: string;
 }
 

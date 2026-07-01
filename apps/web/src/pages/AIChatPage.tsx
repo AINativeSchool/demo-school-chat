@@ -48,11 +48,13 @@ export function AIChatPage() {
     }
   };
 
+  const backPath = '/chats';
+
   if (!conversation) {
     return (
       <div className="page">
         <p className="empty-state">AI conversation not found.</p>
-        <Link to="/ai">Back to AI</Link>
+        <Link to="/chats">Back to Chats</Link>
       </div>
     );
   }
@@ -60,7 +62,7 @@ export function AIChatPage() {
   return (
     <div className="chat-page chat-page-full">
       <div className="chat-header">
-        <Link to="/ai" aria-label="Back">
+        <Link to={backPath} aria-label="Back">
           <ArrowLeft size={22} />
         </Link>
         <span>{conversation.title}</span>

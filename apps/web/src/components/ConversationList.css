@@ -1,21 +1,77 @@
 .conversation-list {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+}
+
+.conversation-list-empty {
+  padding: 3rem 1.5rem;
 }
 
 .conversation-row {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.875rem;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius);
+  gap: 0.875rem;
+  padding: 0.75rem 1rem;
   color: inherit;
-  transition: border-color 0.15s;
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background 0.12s;
 }
 
 .conversation-row:hover {
-  border-color: rgba(0, 245, 255, 0.3);
+  background: rgba(0, 245, 255, 0.06);
+}
+
+.conversation-row__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.conversation-row__top,
+.conversation-row__bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.conversation-row__name {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.conversation-row__time {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.conversation-row__time.unread {
+  color: var(--neon-cyan);
+}
+
+.conversation-row__preview {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.conversation-row__badge {
+  background: var(--neon-magenta);
+  color: white;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  flex-shrink: 0;
+  box-shadow: var(--glow-magenta);
 }

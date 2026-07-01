@@ -9,7 +9,7 @@ export function RegisterPage() {
   const { session, register } = useAuth();
   const [searchParams] = useSearchParams();
   const [inviteCode, setInviteCode] = useState(() => searchParams.get('code') ?? '');
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [error, setError] = useState('');
@@ -22,7 +22,7 @@ export function RegisterPage() {
     setError('');
     setLoading(true);
     try {
-      await register(inviteCode.trim().toUpperCase(), email, password, displayName);
+      await register(inviteCode.trim().toUpperCase(), username, password, displayName);
     } catch (err) {
       setError(err instanceof AuthError ? err.message : 'Registration failed.');
     } finally {
@@ -35,9 +35,8 @@ export function RegisterPage() {
       <div className="auth-card">
         <h1>Join School Chat</h1>
         <p>
-          Register with an invite code. Use <code>SCHOOL01</code> for the first account on a new
-          browser. Generated codes only work in the same browser where they were created — log out,
-          then register here to create a second test account.
+          Register with an invite code. Use <code>SCHOOL01</code> for the first account, or ask a
+          friend for a code they generated in Settings.
         </p>
         <form onSubmit={handleSubmit}>
           <div className="form-group">
@@ -53,6 +52,24 @@ export function RegisterPage() {
             />
           </div>
           <div className="form-group">
+            <label htmlFor="username">Username</label>
+            <input
+              id="username"
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value.toLowerCase())}
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              pattern="[a-z0-9_]{3,20}"
+              title="3–20 characters: letters, numbers, underscores"
+              required
+              minLength={3}
+              maxLength={20}
+            />
+            <p className="form-hint">Your login name. Friends can add you with this username.</p>
+          </div>
+          <div className="form-group">
             <label htmlFor="name">Display name</label>
             <input
               id="name"
@@ -61,10 +78,6 @@ export function RegisterPage() {
               onChange={(e) => setDisplayName(e.target.value)}
               required
             />
-          </div>
-          <div className="form-group">
-            <label htmlFor="email">Email</label>
-            <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
           </div>
           <div className="form-group">
             <label htmlFor="password">Password</label>

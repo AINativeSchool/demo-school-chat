@@ -1,0 +1,14 @@
+.conversation-row--pinned-ai {
+  background: rgba(255, 0, 170, 0.04);
+  border-bottom: 1px solid rgba(255, 0, 170, 0.15);
+}
+
+.conversation-row--pinned-ai:hover {
+  background: rgba(255, 0, 170, 0.08);
+}
+
+.avatar--ai {
+  border-color: var(--neon-magenta);
+  color: var(--neon-magenta);
+  box-shadow: var(--glow-magenta);
+}

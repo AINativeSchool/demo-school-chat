@@ -73,10 +73,6 @@ export const storageService = {
     writeJson(STORAGE_KEYS.users, users);
   },
 
-  findUserByEmail(email: string): User | undefined {
-    return this.getUsers().find((u) => u.email.toLowerCase() === email.toLowerCase());
-  },
-
   findUserByUsername(username: string): User | undefined {
     return this.getUsers().find((u) => u.username.toLowerCase() === username.toLowerCase());
   },

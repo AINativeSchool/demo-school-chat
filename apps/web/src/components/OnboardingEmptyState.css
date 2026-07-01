@@ -1,0 +1,38 @@
+.onboarding-empty {
+  text-align: center;
+  padding: 2.5rem 1rem 3rem;
+  max-width: 22rem;
+  margin: 0 auto;
+}
+
+.onboarding-empty--compact {
+  padding: 1.5rem 1rem 2rem;
+}
+
+.onboarding-empty--compact .onboarding-empty__title {
+  font-size: 1.125rem;
+}
+
+.onboarding-empty--compact .onboarding-empty__text {
+  font-size: 0.875rem;
+  margin-bottom: 1.25rem;
+}
+
+.onboarding-empty__title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 0.75rem;
+  color: var(--text-primary);
+}
+
+.onboarding-empty__text {
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-bottom: 1.75rem;
+}
+
+.onboarding-empty__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}

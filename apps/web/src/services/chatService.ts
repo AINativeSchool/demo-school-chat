@@ -1,7 +1,5 @@
-import type { Conversation, ConversationSummary, Message } from '@school-chat/shared';
-import { authService } from './authService';
-import { friendService } from './friendService';
-import { storageService } from '../storage/storageService';
+import type { Conversation, ConversationSummary, Message, PublicUser } from '@school-chat/shared';
+import { apiClient, ApiError } from '../api/client';
 
 export class ChatError extends Error {
   constructor(message: string) {
@@ -10,127 +8,83 @@ export class ChatError extends Error {
   }
 }
 
-/** Sort two user IDs for a stable conversation pair key. */
-function sortedPair(a: string, b: string): [string, string] {
-  return a < b ? [a, b] : [b, a];
+/** Maps API errors to chat errors for the UI layer. */
+function wrapChatError(err: unknown): never {
+  if (err instanceof ApiError) {
+    throw new ChatError(err.message);
+  }
+  throw err;
 }
 
-/** Manages 1:1 conversations and messages in localStorage. */
+/** Manages 1:1 conversations and messages via the shared API. */
 export const chatService = {
-  getOrCreateConversation(friendUserId: string): Conversation {
-    const current = authService.getCurrentUser();
-    if (!current) throw new ChatError('Not logged in.');
-    if (!friendService.areFriends(friendUserId)) {
-      throw new ChatError('You must be friends to start a chat.');
+  async getOrCreateConversation(friendUserId: string): Promise<Conversation> {
+    try {
+      const { conversation } = await apiClient.post<{ conversation: Conversation }>(
+        `/conversations/with/${friendUserId}`,
+      );
+      return conversation;
+    } catch (err) {
+      wrapChatError(err);
     }
-    if (friendService.isBlocked(friendUserId)) {
-      throw new ChatError('Cannot message this user.');
+  },
+
+  async listConversations(): Promise<ConversationSummary[]> {
+    try {
+      const { conversations } = await apiClient.get<{ conversations: ConversationSummary[] }>(
+        '/conversations',
+      );
+      return conversations;
+    } catch (err) {
+      wrapChatError(err);
     }
+  },
 
-    const [userAId, userBId] = sortedPair(current.id, friendUserId);
-    const conversations = storageService.getConversations();
-    let conversation = conversations.find((c) => c.userAId === userAId && c.userBId === userBId);
-
-    if (!conversation) {
-      conversation = {
-        id: storageService.generateId(),
-        userAId,
-        userBId,
-        updatedAt: new Date().toISOString(),
-      };
-      conversations.push(conversation);
-      storageService.saveConversations(conversations);
+  async getMessages(conversationId: string, since?: string): Promise<Message[]> {
+    try {
+      const query = since ? `?since=${encodeURIComponent(since)}` : '';
+      const { messages } = await apiClient.get<{ messages: Message[] }>(
+        `/conversations/${conversationId}/messages${query}`,
+      );
+      return messages;
+    } catch (err) {
+      wrapChatError(err);
     }
-
-    return conversation;
   },
 
-  getUnreadCount(conversationId: string, currentUserId: string): number {
-    const lastReadAt = storageService.getReadState()[conversationId];
-    const messages = storageService.getMessages(conversationId);
-    return messages.filter(
-      (m) => m.senderId !== currentUserId && (!lastReadAt || m.createdAt > lastReadAt),
-    ).length;
-  },
-
-  listConversations(): ConversationSummary[] {
-    const current = authService.getCurrentUser();
-    if (!current) return [];
-
-    const users = storageService.getUsers();
-    const conversations = storageService
-      .getConversations()
-      .filter((c) => c.userAId === current.id || c.userBId === current.id);
-
-    return conversations
-      .map((conversation) => {
-        const otherId = conversation.userAId === current.id ? conversation.userBId : conversation.userAId;
-        const otherUser = users.find((u) => u.id === otherId)!;
-        const messages = storageService.getMessages(conversation.id);
-        const lastMessage = messages[messages.length - 1];
-        const unreadCount = this.getUnreadCount(conversation.id, current.id);
-
-        return { conversation, otherUser, lastMessage, unreadCount };
-      })
-      .sort((a, b) => {
-        const aTime = a.lastMessage?.createdAt ?? a.conversation.updatedAt;
-        const bTime = b.lastMessage?.createdAt ?? b.conversation.updatedAt;
-        return bTime.localeCompare(aTime);
-      });
-  },
-
-  getMessages(conversationId: string): Message[] {
-    return storageService.getMessages(conversationId).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  },
-
-  sendMessage(
+  async sendMessage(
     conversationId: string,
     payload: { content?: string; imageDataUrl?: string },
-  ): Message {
-    const current = authService.getCurrentUser();
-    if (!current) throw new ChatError('Not logged in.');
-
-    const conversations = storageService.getConversations();
-    const conversation = conversations.find((c) => c.id === conversationId);
-    if (!conversation) throw new ChatError('Conversation not found.');
-
-    const otherId =
-      conversation.userAId === current.id ? conversation.userBId : conversation.userAId;
-
-    if (!friendService.areFriends(otherId)) {
-      throw new ChatError('You must be friends to send messages.');
+  ): Promise<Message> {
+    try {
+      const { message } = await apiClient.post<{ message: Message }>(
+        `/conversations/${conversationId}/messages`,
+        payload,
+      );
+      return message;
+    } catch (err) {
+      wrapChatError(err);
     }
-    if (friendService.isBlocked(otherId)) {
-      throw new ChatError('Cannot message this user.');
-    }
-
-    if (!payload.content?.trim() && !payload.imageDataUrl) {
-      throw new ChatError('Message cannot be empty.');
-    }
-
-    const message: Message = {
-      id: storageService.generateId(),
-      conversationId,
-      senderId: current.id,
-      content: payload.content?.trim(),
-      imageDataUrl: payload.imageDataUrl,
-      status: 'sent',
-      createdAt: new Date().toISOString(),
-    };
-
-    storageService.appendMessage(conversationId, message);
-
-    conversation.updatedAt = message.createdAt;
-    storageService.saveConversations(conversations);
-
-    return message;
   },
 
-  markAsRead(conversationId: string): void {
-    storageService.setReadState(conversationId, new Date().toISOString());
+  async markAsRead(conversationId: string): Promise<void> {
+    try {
+      await apiClient.post(`/conversations/${conversationId}/read`);
+    } catch (err) {
+      wrapChatError(err);
+    }
   },
 
-  getConversation(conversationId: string): Conversation | undefined {
-    return storageService.getConversations().find((c) => c.id === conversationId);
+  async getConversationWithUser(
+    conversationId: string,
+  ): Promise<{ conversation: Conversation; otherUser: PublicUser } | null> {
+    try {
+      const conversations = await this.listConversations();
+      const summary = conversations.find((entry) => entry.conversation.id === conversationId);
+      if (!summary) return null;
+      return { conversation: summary.conversation, otherUser: summary.otherUser };
+    } catch (err) {
+      wrapChatError(err);
+    }
   },
 };

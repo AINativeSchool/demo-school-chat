@@ -1,6 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import type { InviteCode } from '@school-chat/shared';
 import { NeonButton } from '../components/NeonButton';
+import { ScreenHeader } from '../components/ScreenHeader';
 import { useAuth } from '../hooks/useAuth';
 import { authService } from '../services/authService';
 
@@ -10,20 +12,36 @@ export function SettingsPage() {
   const navigate = useNavigate();
   const [displayName, setDisplayName] = useState(user?.displayName ?? '');
   const [latestInviteCode, setLatestInviteCode] = useState('');
+  const [myInviteCodes, setMyInviteCodes] = useState<InviteCode[]>([]);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState('');
 
-  const myInviteCodes = useMemo(() => authService.listMyInviteCodes(), [latestInviteCode, user?.id]);
+  useEffect(() => {
+    authService.listMyInviteCodes().then(setMyInviteCodes).catch(() => setMyInviteCodes([]));
+  }, [latestInviteCode]);
 
-  const handleSave = () => {
-    authService.updateProfile({ displayName });
-    refresh();
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const handleSave = async () => {
+    setError('');
+    try {
+      await authService.updateProfile({ displayName });
+      refresh();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save profile.');
+    }
   };
 
-  const handleGenerateInvite = () => {
-    const code = authService.generateInviteCode();
-    setLatestInviteCode(code);
+  const handleGenerateInvite = async () => {
+    setError('');
+    try {
+      const code = await authService.generateInviteCode();
+      setLatestInviteCode(code);
+      const codes = await authService.listMyInviteCodes();
+      setMyInviteCodes(codes);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to generate invite code.');
+    }
   };
 
   const handleLogout = () => {
@@ -36,9 +54,10 @@ export function SettingsPage() {
   };
 
   return (
-    <div className="page">
-      <h1 className="page-header">Settings</h1>
+    <div className="screen">
+      <ScreenHeader title="Settings" />
 
+      <div className="page">
       <div className="settings-section">
         <h2>Profile</h2>
         <div className="form-group">
@@ -59,8 +78,8 @@ export function SettingsPage() {
       <div className="settings-section">
         <h2>Invite friends</h2>
         <p className="notice">
-          Generate a code, then log out and register a second account in this same browser to test
-          with a friend. Codes do not sync to other devices or incognito windows in v1.
+          Generate a code and share it with friends. They can register from any device using the
+          same app URL.
         </p>
         <NeonButton variant="cyan" onClick={handleGenerateInvite}>
           Generate invite code
@@ -94,15 +113,18 @@ export function SettingsPage() {
       <div className="settings-section">
         <h2>Data & privacy</h2>
         <p className="notice">
-          All data is stored locally in this browser. Clearing site data will delete your account,
-          messages, and AI chats. Cross-device sync is not available in v1 — friends on different
-          phones cannot see your messages yet.
+          Account, friends, and messages are stored on the shared server so you can chat across
+          devices. AI conversation history stays in this browser for now. Image uploads are limited
+          to about 2 MB to protect storage space.
         </p>
       </div>
+
+      {error && <p className="error-text">{error}</p>}
 
       <NeonButton variant="ghost" onClick={handleLogout}>
         Log out
       </NeonButton>
+      </div>
     </div>
   );
 }

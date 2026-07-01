@@ -14,13 +14,15 @@
   cursor: not-allowed;
 }
 
-.neon-btn--cyan {
+.neon-btn--cyan,
+.neon-btn--primary {
   background: var(--neon-cyan);
   color: var(--bg-primary);
   box-shadow: var(--glow-cyan);
 }
 
-.neon-btn--cyan:hover:not(:disabled) {
+.neon-btn--cyan:hover:not(:disabled),
+.neon-btn--primary:hover:not(:disabled) {
   box-shadow: 0 0 20px rgba(0, 245, 255, 0.6);
 }
 

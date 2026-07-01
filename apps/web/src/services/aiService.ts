@@ -11,6 +11,9 @@ export class AiError extends Error {
 
 const AI_API_URL = import.meta.env.VITE_AI_API_URL ?? '/api';
 
+export const CASUAL_CHAT_TITLE = 'AI';
+export const LEARN_CHAT_TITLE = 'Learn with AI';
+
 /** Manages AI conversations locally and proxies chat requests to the API. */
 export const aiService = {
   createConversation(mode: AiMode, title?: string): AiConversation {
@@ -39,6 +42,62 @@ export const aiService = {
       .getAiConversations()
       .filter((c) => c.userId === user.id)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  },
+
+  /** Returns the default learn-mode thread, creating it on first access. */
+  getOrCreateLearnChat(): AiConversation {
+    const user = authService.getCurrentUser();
+    if (!user) throw new AiError('Not logged in.');
+
+    const learnConversations = storageService
+      .getAiConversations()
+      .filter((c) => c.userId === user.id && c.mode === 'learn');
+
+    if (learnConversations.length > 0) {
+      return learnConversations.sort((a, b) => {
+        const aMessages = storageService.getAiMessages(a.id);
+        const bMessages = storageService.getAiMessages(b.id);
+        const aTime = aMessages[aMessages.length - 1]?.createdAt ?? a.createdAt;
+        const bTime = bMessages[bMessages.length - 1]?.createdAt ?? b.createdAt;
+        return bTime.localeCompare(aTime);
+      })[0];
+    }
+
+    return this.createConversation('learn', LEARN_CHAT_TITLE);
+  },
+
+  /** Route path for the pinned learn-mode AI chat. */
+  getLearnChatPath(): string {
+    return `/ai/${this.getOrCreateLearnChat().id}`;
+  },
+
+  /** Returns the pinned casual chat thread, creating it on first access. */
+  getOrCreateCasualChat(): AiConversation {
+    const user = authService.getCurrentUser();
+    if (!user) throw new AiError('Not logged in.');
+
+    const chatConversations = storageService
+      .getAiConversations()
+      .filter((c) => c.userId === user.id && c.mode === 'chat');
+
+    if (chatConversations.length > 0) {
+      return chatConversations.sort((a, b) => {
+        const aMessages = storageService.getAiMessages(a.id);
+        const bMessages = storageService.getAiMessages(b.id);
+        const aTime = aMessages[aMessages.length - 1]?.createdAt ?? a.createdAt;
+        const bTime = bMessages[bMessages.length - 1]?.createdAt ?? b.createdAt;
+        return bTime.localeCompare(aTime);
+      })[0];
+    }
+
+    return this.createConversation('chat', CASUAL_CHAT_TITLE);
+  },
+
+  /** Preview data for the pinned AI row on the main chat list. */
+  getCasualChatSummary(): { conversation: AiConversation; lastMessage?: AiMessage } {
+    const conversation = this.getOrCreateCasualChat();
+    const messages = this.getMessages(conversation.id);
+    return { conversation, lastMessage: messages[messages.length - 1] };
   },
 
   getConversation(id: string): AiConversation | undefined {
