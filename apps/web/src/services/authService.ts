@@ -1,6 +1,5 @@
-import bcrypt from 'bcryptjs';
-import type { InviteCode, Session, User } from '@school-chat/shared';
-import { storageService } from '../storage/storageService';
+import type { AuthResponse, InviteCode, PublicUser, Session } from '@school-chat/shared';
+import { apiClient, ApiError } from '../api/client';
 
 export class AuthError extends Error {
   constructor(message: string) {
@@ -9,194 +8,109 @@ export class AuthError extends Error {
   }
 }
 
-/** Derive a URL-safe username from display name. */
-function toUsername(displayName: string): string {
-  const base = displayName
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, '')
-    .slice(0, 20);
-  return base || 'user';
-}
+let cachedUser: PublicUser | null = null;
 
-/** Ensure username is unique by appending a suffix if needed. */
-function uniqueUsername(displayName: string): string {
-  let username = toUsername(displayName);
-  let suffix = 1;
-  while (storageService.findUserByUsername(username)) {
-    username = `${toUsername(displayName)}${suffix}`;
-    suffix += 1;
+/** Maps API errors to auth errors for the UI layer. */
+function wrapAuthError(err: unknown): never {
+  if (err instanceof ApiError) {
+    throw new AuthError(err.message);
   }
-  return username;
+  throw err;
 }
 
-/** Generate a random 8-character invite code. */
-function randomInviteCode(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let code = '';
-  for (let i = 0; i < 8; i += 1) {
-    code += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return code;
-}
-
-/** Pick the first invite entry that can still be redeemed. */
-function findRedeemableInvite(codes: InviteCode[], normalizedCode: string): InviteCode | undefined {
-  return codes.find((entry) => {
-    if (entry.code !== normalizedCode) return false;
-    if (entry.expiresAt && new Date(entry.expiresAt) < new Date()) return false;
-    return entry.useCount < entry.maxUses;
-  });
-}
-
-/** Build a helpful error when a generated code is missing from this browser. */
-function inviteNotFoundMessage(normalizedCode: string): string {
-  if (normalizedCode === 'SCHOOL01') {
-    return 'Invalid invite code.';
-  }
-
-  return (
-    'Invite code not found in this browser. Generated codes are stored locally — ' +
-    'log out on the device that created the code, then register here with that code. ' +
-    'Codes shared to another phone or an incognito window will not work in v1.'
-  );
-}
-
-/** Handles local invite-only registration and session management. */
+/** Handles server-backed registration, login, and profile management. */
 export const authService = {
-  async register(
-    inviteCode: string,
-    email: string,
-    password: string,
-    displayName: string,
-  ): Promise<User> {
-    const normalizedCode = inviteCode.trim().toUpperCase();
-    const codes = storageService.getInviteCodes();
-    const invite = findRedeemableInvite(codes, normalizedCode);
-
-    if (!invite) {
-      const knownCode = codes.some((entry) => entry.code === normalizedCode);
-      if (knownCode) {
-        throw new AuthError('Invite code has expired or reached its use limit.');
-      }
-      throw new AuthError(inviteNotFoundMessage(normalizedCode));
-    }
-    if (storageService.findUserByEmail(email)) {
-      throw new AuthError('An account with this email already exists.');
-    }
-    if (password.length < 6) {
-      throw new AuthError('Password must be at least 6 characters.');
+  /** Restores the session from a stored JWT on app load. */
+  async loadSession(): Promise<void> {
+    if (!apiClient.getToken()) {
+      cachedUser = null;
+      return;
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
-    const user: User = {
-      id: storageService.generateId(),
-      email: email.trim().toLowerCase(),
-      passwordHash,
-      displayName: displayName.trim(),
-      username: uniqueUsername(displayName),
-      createdAt: new Date().toISOString(),
-    };
-
-    storageService.saveUser(user);
-    invite.useCount += 1;
-    storageService.saveInviteCodes(codes);
-
-    const session: Session = {
-      userId: user.id,
-      email: user.email,
-      displayName: user.displayName,
-    };
-    storageService.setSession(session);
-
-    return user;
+    try {
+      const { user } = await apiClient.get<{ user: PublicUser }>('/auth/me');
+      cachedUser = user;
+    } catch {
+      apiClient.setToken(null);
+      cachedUser = null;
+    }
   },
 
-  async login(email: string, password: string): Promise<User> {
-    const user = storageService.findUserByEmail(email);
-    if (!user) {
-      throw new AuthError('Invalid email or password.');
+  async register(
+    inviteCode: string,
+    username: string,
+    password: string,
+    displayName: string,
+  ): Promise<PublicUser> {
+    try {
+      const response = await apiClient.post<AuthResponse>('/auth/register', {
+        inviteCode,
+        username,
+        password,
+        displayName,
+      });
+      apiClient.setToken(response.token);
+      cachedUser = response.user;
+      return response.user;
+    } catch (err) {
+      wrapAuthError(err);
     }
+  },
 
-    const valid = await bcrypt.compare(password, user.passwordHash);
-    if (!valid) {
-      throw new AuthError('Invalid email or password.');
+  async login(username: string, password: string): Promise<PublicUser> {
+    try {
+      const response = await apiClient.post<AuthResponse>('/auth/login', { username, password });
+      apiClient.setToken(response.token);
+      cachedUser = response.user;
+      return response.user;
+    } catch (err) {
+      wrapAuthError(err);
     }
-
-    storageService.setSession({
-      userId: user.id,
-      email: user.email,
-      displayName: user.displayName,
-    });
-
-    return user;
   },
 
   logout(): void {
-    storageService.setSession(null);
+    apiClient.setToken(null);
+    cachedUser = null;
   },
 
   getSession(): Session | null {
-    return storageService.getSession();
-  },
-
-  getCurrentUser(): User | null {
-    const session = storageService.getSession();
-    if (!session) return null;
-    return storageService.getUsers().find((u) => u.id === session.userId) ?? null;
-  },
-
-  updateProfile(updates: { displayName?: string; avatarUrl?: string }): User {
-    const user = this.getCurrentUser();
-    if (!user) throw new AuthError('Not logged in.');
-
-    const updated: User = {
-      ...user,
-      displayName: updates.displayName?.trim() ?? user.displayName,
-      avatarUrl: updates.avatarUrl ?? user.avatarUrl,
+    if (!cachedUser || !apiClient.getToken()) return null;
+    return {
+      userId: cachedUser.id,
+      username: cachedUser.username,
+      displayName: cachedUser.displayName,
     };
-
-    storageService.saveUser(updated);
-
-    const session = storageService.getSession();
-    if (session) {
-      storageService.setSession({ ...session, displayName: updated.displayName });
-    }
-
-    return updated;
   },
 
-  /** List invite codes created by the current user that still have uses left. */
-  listMyInviteCodes(): InviteCode[] {
-    const user = this.getCurrentUser();
-    if (!user) return [];
-
-    return storageService
-      .getInviteCodes()
-      .filter(
-        (entry) =>
-          entry.createdBy === user.id &&
-          entry.useCount < entry.maxUses &&
-          !(entry.expiresAt && new Date(entry.expiresAt) < new Date()),
-      );
+  getCurrentUser(): PublicUser | null {
+    return cachedUser;
   },
 
-  generateInviteCode(): string {
-    const user = this.getCurrentUser();
-    if (!user) throw new AuthError('Not logged in.');
-
-    const codes = storageService.getInviteCodes();
-    let code = randomInviteCode();
-    while (codes.some((entry) => entry.code === code)) {
-      code = randomInviteCode();
+  async updateProfile(updates: { displayName?: string; avatarUrl?: string }): Promise<PublicUser> {
+    try {
+      const { user } = await apiClient.patch<{ user: PublicUser }>('/auth/me', updates);
+      cachedUser = user;
+      return user;
+    } catch (err) {
+      wrapAuthError(err);
     }
+  },
 
-    codes.push({
-      code,
-      createdBy: user.id,
-      maxUses: 10,
-      useCount: 0,
-    });
-    storageService.saveInviteCodes(codes);
-    return code;
+  async listMyInviteCodes(): Promise<InviteCode[]> {
+    try {
+      const { codes } = await apiClient.get<{ codes: InviteCode[] }>('/invites/mine');
+      return codes;
+    } catch (err) {
+      wrapAuthError(err);
+    }
+  },
+
+  async generateInviteCode(): Promise<string> {
+    try {
+      const { code } = await apiClient.post<{ code: string }>('/invites');
+      return code;
+    } catch (err) {
+      wrapAuthError(err);
+    }
   },
 };

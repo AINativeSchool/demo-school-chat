@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Send } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { AIChatPanel } from '../components/AIChatPanel';
 import { AIMessageContent } from '../components/AIMessageContent';
-import { NeonButton } from '../components/NeonButton';
+import { MessageInput } from '../components/MessageInput';
+import { TeacherDisplayName } from '../components/TeacherDisplayName';
 import { useLocalStorageSync } from '../hooks/useLocalStorage';
 import { aiService } from '../services/aiService';
 import { AiError } from '../services/aiService';
@@ -12,7 +13,6 @@ import { AiError } from '../services/aiService';
 export function AIChatPage() {
   const { id } = useParams<{ id: string }>();
   const { version, bump } = useLocalStorageSync();
-  const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -31,12 +31,21 @@ export function AIChatPage() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
 
-  const handleSend = async () => {
-    if (!id || !text.trim() || loading) return;
+  useEffect(() => {
+    if (!id || !conversation || conversation.mode !== 'teacher' || messages.length > 0) return;
+
+    aiService
+      .ensureTeacherOpening(id)
+      .then((seeded) => {
+        if (seeded) bump();
+      })
+      .catch(() => {});
+  }, [id, conversation, messages.length, bump]);
+
+  const handleSend = async (content: string) => {
+    if (!id || !content.trim() || loading) return;
     setError('');
     setLoading(true);
-    const content = text;
-    setText('');
     bump();
     try {
       await aiService.sendMessage(id, content);
@@ -48,11 +57,13 @@ export function AIChatPage() {
     }
   };
 
+  const backPath = conversation?.mode === 'teacher' ? '/ai' : '/chats';
+
   if (!conversation) {
     return (
       <div className="page">
         <p className="empty-state">AI conversation not found.</p>
-        <Link to="/ai">Back to AI</Link>
+        <Link to="/chats">Back to Chats</Link>
       </div>
     );
   }
@@ -60,12 +71,16 @@ export function AIChatPage() {
   return (
     <div className="chat-page chat-page-full">
       <div className="chat-header">
-        <Link to="/ai" aria-label="Back">
+        <Link to={backPath} aria-label="Back">
           <ArrowLeft size={22} />
         </Link>
-        <span>{conversation.title}</span>
+        {conversation.mode === 'teacher' ? (
+          <TeacherDisplayName name={conversation.personalityName ?? conversation.title} />
+        ) : (
+          <span>{conversation.title}</span>
+        )}
       </div>
-      <AIChatPanel mode={conversation.mode} />
+      <AIChatPanel mode={conversation.mode} personalityName={conversation.personalityName} />
       <div className="chat-messages">
         {messages.map((msg) => (
           <div key={msg.id} className={`ai-chat-bubble ${msg.role === 'user' ? 'user' : 'assistant'}`}>
@@ -75,27 +90,19 @@ export function AIChatPage() {
         {loading && <p className="ai-loading">AI is thinking...</p>}
         <div ref={bottomRef} />
       </div>
-      {error && <p className="error-text" style={{ padding: '0 1rem' }}>{error}</p>}
-      <form
-        className="message-input"
-        onSubmit={(e) => {
-          e.preventDefault();
-          handleSend();
+      {error && <p className="error-text chat-page__error">{error}</p>}
+      <MessageInput
+        onSend={({ content }) => {
+          if (content) handleSend(content);
         }}
-      >
-        <div className="message-input__row">
-          <input
-            type="text"
-            placeholder="Ask the AI..."
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            disabled={loading}
-          />
-          <NeonButton type="submit" variant="magenta" className="message-input__send" disabled={loading || !text.trim()}>
-            <Send size={18} />
-          </NeonButton>
-        </div>
-      </form>
+        disabled={loading}
+        showAttach={false}
+        placeholder={
+          conversation.mode === 'teacher'
+            ? 'Reply or pick an option above…'
+            : 'Ask the AI...'
+        }
+      />
     </div>
   );
 }

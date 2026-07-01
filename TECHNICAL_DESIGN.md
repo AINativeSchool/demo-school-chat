@@ -1,18 +1,22 @@
 # Technical Design: School Friends Chat + AI (v1)
 
-Based on [REQUIREMENTS.md](REQUIREMENTS.md). Greenfield project — no existing code.
+Based on [REQUIREMENTS.md](REQUIREMENTS.md). **Implemented** - monorepo with React frontend, Fastify API, and SQLite persistence.
 
 ## Decisions locked in
 
 | Topic | Choice |
 |-------|--------|
 | Platform | Web only (mobile-responsive SPA) |
-| Persistence | **Browser `localStorage`** — no database |
-| Registration | Invite code required |
+| Persistence | **SQLite** on server (`better-sqlite3`) for users, friends, messages; **localStorage** for AI history only |
+| Registration | Invite code required; username is primary identity (no email) |
+| Authentication | JWT bearer tokens; bcrypt password hashing |
 | Messaging scope | 1:1 only (no groups) |
-| AI integration | [resilient-llm](https://github.com/gitcommitshow/resilient-llm) via a thin API proxy (keys stay server-side) |
-| Visual design | Neon theme (dark + glowing accents) |
-| Scale target | Single-browser prototype; ~10–50 users when a backend is added later |
+| Real-time updates | HTTP polling (~5 s), not WebSockets |
+| AI integration | [resilient-llm](https://github.com/gitcommitshow/resilient-llm) via Fastify API proxy (keys stay server-side) |
+| Visual design | Neon theme (dark + glowing accents); WhatsApp-familiar layout patterns |
+| Cross-device sync | REST API + shared SQLite database |
+| Deployment | Single VPS - Fastify serves API and optionally static web build |
+| Teacher AI personalities | SQLite `ai_personalities` table; prompts resolved server-side only |
 
 ---
 
@@ -22,34 +26,43 @@ Based on [REQUIREMENTS.md](REQUIREMENTS.md). Greenfield project — no existing 
 flowchart TB
   subgraph client [Web Client]
     SPA[React SPA]
-    LS[(localStorage)]
-    Store[Storage Layer]
+    LS[(localStorage - AI only)]
+    ApiClient[apiClient]
   end
 
-  subgraph server [Optional AI Proxy]
-    AI[AI Route]
+  subgraph server [Fastify API]
+    Auth[Auth Routes]
+    Friends[Friend Routes]
+    Chat[Conversation Routes]
+    AI[AI Routes]
+    Personalities[Personality Registry]
+    DB[(SQLite)]
     LLM[resilient-llm]
   end
 
-  SPA --> Store
-  Store --> LS
-  SPA -->|HTTPS POST /ai/chat| AI
+  SPA --> ApiClient
+  SPA --> LS
+  ApiClient -->|REST + JWT| Auth
+  ApiClient --> Friends
+  ApiClient --> Chat
+  ApiClient -->|GET /ai/personalities| AI
+  ApiClient -->|POST /ai/chat| AI
+  Auth --> DB
+  Friends --> DB
+  Chat --> DB
+  AI --> Personalities
+  Personalities --> DB
   AI --> LLM
 ```
 
-**Pattern:** The app is a **client-only SPA** for auth, friends, messaging, and AI history. All data is read/written through a storage service that wraps `localStorage`. A **minimal backend** exists only to proxy AI requests so LLM API keys never ship to the browser.
+**Pattern:** The React SPA calls a **Fastify REST API** for auth, friends, and messaging. All shared data lives in SQLite on the server so two users on different computers see the same messages. AI conversation history stays client-side in `localStorage` and is sent to the AI proxy per request.
 
 **Why this stack**
 
-- **React + Vite** — fast dev, mobile-friendly UI
-- **localStorage** — zero infra, no database setup, good for v1 prototyping
-- **Thin AI proxy** — resilient-llm stays server-side; client sends message + recent history in the request body
-
-### v1 limitation (important)
-
-Without a server database, **friend messages do not sync between devices or browsers**. Each installation holds its own data. Friend chat works as local 1:1 threads on that device. Cross-user real-time messaging is deferred until a backend is added.
-
-For same-browser testing, the `storage` event can refresh UI when another tab writes to `localStorage`.
+- **React + Vite** - fast dev, mobile-friendly UI
+- **SQLite + Fastify** - minimal infra, no separate DB server, good for a small friend group on one VPS
+- **HTTP polling** - simplest cross-device sync without WebSocket infrastructure
+- **Thin AI proxy** - resilient-llm stays server-side; client sends mode + recent history in the request body
 
 ---
 
@@ -59,36 +72,45 @@ For same-browser testing, the `storage` event can refresh UI when another tab wr
 an-intro-session-2/
 ├── REQUIREMENTS.md
 ├── TECHNICAL_DESIGN.md
+├── README.md
 ├── package.json                 # npm workspaces root
 ├── apps/
-│   ├── web/                     # React + Vite frontend (main app)
-│   └── api/                     # Optional: thin Fastify AI proxy only
+│   ├── web/                     # React + Vite frontend
+│   │   └── src/
+│   │       ├── api/client.ts    # HTTP client with JWT
+│   │       ├── services/        # auth, friend, chat, ai
+│   │       ├── storage/         # localStorage (AI history only)
+│   │       ├── hooks/           # useAuth, usePolling, useConversations
+│   │       ├── pages/           # Login, Register, Chats, Chat, Friends, AI, Settings
+│   │       └── components/      # ChatBubble, ConversationList, BottomNav, etc.
+│   └── api/                     # Fastify REST API + AI proxy
+│       └── src/
+│           ├── db/index.ts      # SQLite schema + data access
+│           ├── routes/          # auth, friends, conversations, invites, ai, ai-personalities
+│           ├── services/        # auth, friend, chat, ai, personalityService
+│           └── middleware/auth.ts
 └── packages/
     └── shared/                  # shared TypeScript types
 ```
-
-No `docker-compose.yml`, no Postgres, no object storage.
 
 ---
 
 ## Data model
 
-Logical entities (stored as JSON in `localStorage`, not in a DB):
+### Server (SQLite)
 
 ```mermaid
 erDiagram
   users ||--o{ invite_codes : creates
   users ||--o{ friendships : participates
   users ||--o{ messages : sends
-  users ||--o{ ai_conversations : owns
   conversations ||--o{ messages : contains
-  ai_conversations ||--o{ ai_messages : contains
 
   users {
     string id PK
-    string email
     string password_hash
     string display_name
+    string username UK
     string avatar_url
     timestamp created_at
   }
@@ -126,137 +148,219 @@ erDiagram
     timestamp created_at
   }
 
-  ai_conversations {
+  ai_personalities {
     string id PK
-    string user_id
-    string title
-    enum mode
+    string slug UK
+    string name
+    text description
+    text system_prompt
+    string accent_color
+    string icon
+    boolean is_default
+    boolean enabled
+    int sort_order
     timestamp created_at
-  }
-
-  ai_messages {
-    string id PK
-    string ai_conversation_id
-    enum role
-    text content
-    timestamp created_at
+    timestamp updated_at
   }
 ```
 
-### Key constraints
-
-- **conversations:** unique pair `(user_a_id, user_b_id)` with IDs stored in sorted order
-- **friendships:** status ∈ `pending | accepted | blocked`
-- **messages:** `content` OR `image_data_url` required
-- **invite_codes:** validated locally at register; `use_count` incremented on success
-
----
-
-## localStorage schema
-
-All keys prefixed with `schoolchat:`.
+### Client (localStorage - AI only)
 
 | Key | Type | Contents |
 |-----|------|----------|
-| `schoolchat:session` | object | `{ userId, email, displayName }` — current logged-in user |
-| `schoolchat:users` | array | All registered users on this browser |
-| `schoolchat:invite_codes` | array | Valid invite codes |
-| `schoolchat:friends` | array | Friendship records |
-| `schoolchat:conversations` | array | 1:1 conversation metadata |
-| `schoolchat:messages` | object | `{ [conversationId]: Message[] }` |
-| `schoolchat:read_state` | object | `{ [conversationId]: lastReadAt }` |
-| `schoolchat:ai_conversations` | array | AI thread list |
+| `schoolchat:ai_conversations` | array | AI thread list (includes `personalityId` for teacher threads) |
 | `schoolchat:ai_messages` | object | `{ [aiConversationId]: AiMessage[] }` |
+| `schoolchat:session` | object | Cached session `{ userId, username, displayName }` + JWT token |
 
-**Storage service:** `apps/web/src/storage/storageService.ts` — single module for get/set, JSON parse/stringify, and UUID generation.
+**Extended client field - `AiConversation`:**
 
 ```typescript
-// Conceptual API
-const storage = {
-  getSession(): Session | null,
-  setSession(session: Session | null): void,
-  getUsers(): User[],
-  saveUser(user: User): void,
-  getMessages(conversationId: string): Message[],
-  appendMessage(conversationId: string, message: Message): void,
-  // ... etc.
-};
+interface AiConversation {
+  id: string;
+  userId: string;
+  title: string;
+  mode: 'teacher' | 'chat';
+  personalityId?: string;   // teacher mode only; omitted = default general tutor
+  createdAt: string;
+}
 ```
 
-### Images
+**Key constraints**
 
-Store images as **base64 data URLs** in `message.image_data_url`. No upload server.
+- **conversations:** unique pair `(user_a_id, user_b_id)` with IDs stored in sorted order
+- **friendships:** status ∈ `pending | accepted | blocked`
+- **messages:** `content` OR `image_data_url` required; images stored as base64 (~2 MB limit)
+- **users:** `username` unique, normalized lowercase, 3–20 chars, `[a-z0-9_]`
+- **invite_codes:** validated at register; `use_count` incremented on success; default seed `SCHOOL01`
+- **ai_personalities:** `slug` unique; exactly one row with `is_default = true` for teacher mode; `system_prompt` never returned in public API responses
 
-- Max ~2 MB per image (keep under `localStorage` ~5 MB total limit per origin)
-- Reject larger files with a user-visible error
-- Prefer compressing client-side before save (optional v1 enhancement)
+### Seed personalities (server bootstrap)
+
+On first run, seed named AI Twin teachers (each mirrors a real Sir's coaching style):
+
+| slug | name | expertise labels |
+|------|------|------------------|
+| `general` | Pradeep Sir | AI, Startups |
+| `math` | Praveen Sir | Math, Puzzles |
+| `coding` | Surya Sir | Coding, Software |
+| `thinking` | Mayank Sir | Decision Making, Judgement |
+
+Each label is one or two words. Stored as JSON in `expertise_labels`; returned as `expertiseLabels: string[]` on `GET /ai/personalities`.
+
+Display names omit prefixes; the web app renders a tiny **AI Twin** badge after each name and multiple **expertise** pills (accent-colored, distinct from the AI Twin tag).
+
+Admins can add, disable, reorder, or edit prompts via seed data in `apps/api/src/db/index.ts` — see [docs/PERSONALITIES.md](docs/PERSONALITIES.md). Admin REST API is deferred for v1.
 
 ---
 
-## Client-side services (no REST for app data)
+## REST API
 
-All friend/auth/chat logic runs in the browser via service modules:
+All routes prefixed with `/api`. Authenticated routes require `Authorization: Bearer <jwt>`.
+
+### Auth
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/auth/register` | `{ inviteCode, username, password, displayName }` |
+| POST | `/auth/login` | `{ username, password }` |
+| GET | `/auth/me` | Current user profile |
+| PATCH | `/auth/me` | Update `{ displayName?, avatarUrl? }` |
+
+### Invites
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/invites` | Generate new invite code |
+| GET | `/invites/mine` | List codes created by current user |
+
+### Friends
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/friends` | List accepted friends |
+| GET | `/friends/requests` | Incoming + outgoing pending requests |
+| POST | `/friends/request` | `{ username }` - send friend request |
+| POST | `/friends/requests/:id/accept` | Accept request |
+| POST | `/friends/requests/:id/decline` | Decline request |
+| DELETE | `/friends/:userId` | Unfriend |
+| POST | `/friends/:userId/block` | Block user |
+
+### Conversations & messages
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/conversations` | List with last message + unread count |
+| POST | `/conversations` | `{ friendUserId }` - get or create 1:1 thread |
+| GET | `/conversations/:id/messages` | Message history |
+| POST | `/conversations/:id/messages` | Send `{ content?, imageDataUrl? }` |
+| POST | `/conversations/:id/read` | Mark conversation read |
+
+### AI
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/ai/personalities` | List enabled teacher personalities (metadata only - no system prompts) |
+| POST | `/ai/chat` | `{ mode, personalityId?, messages[] }` → `{ reply, personality? }` |
+
+### AI personalities (admin - deferred)
+
+Admin REST API is not implemented in v1. Personalities are managed via SQLite seed data — see [docs/PERSONALITIES.md](docs/PERSONALITIES.md).
+
+**Public personality response shape** (client-safe):
+
+```json
+{
+  "id": "uuid",
+  "slug": "math",
+  "name": "Praveen Sir",
+  "description": "Step-by-step help with algebra, geometry, and more.",
+  "accentColor": "#00f5ff",
+  "icon": "calculator",
+  "isDefault": false,
+  "sortOrder": 2
+}
+```
+
+---
+
+## Client-side services
 
 | Module | Path | Responsibility |
 |--------|------|----------------|
-| `authService` | `apps/web/src/services/authService.ts` | Register, login, logout, invite validation |
+| `apiClient` | `apps/web/src/api/client.ts` | HTTP requests, JWT header, error handling |
+| `authService` | `apps/web/src/services/authService.ts` | Register, login, logout, profile, invites |
 | `friendService` | `apps/web/src/services/friendService.ts` | Requests, accept/decline, block, unfriend |
-| `chatService` | `apps/web/src/services/chatService.ts` | Conversations, send message, read state, unread counts |
-| `aiService` | `apps/web/src/services/aiService.ts` | AI threads, call AI proxy, persist replies |
-| `storageService` | `apps/web/src/storage/storageService.ts` | localStorage read/write |
+| `chatService` | `apps/web/src/services/chatService.ts` | Conversations, send message, read state |
+| `aiService` | `apps/web/src/services/aiService.ts` | AI threads, personalities fetch, call AI proxy, persist to localStorage |
+| `storageService` | `apps/web/src/storage/storageService.ts` | localStorage read/write (AI history) |
+| `personalityService` | `apps/api/src/services/personalityService.ts` | Load/CRUD personalities; resolve system prompt by id/slug |
 
-### Auth & invites (local)
+### Shared types (`packages/shared`)
 
-| Action | Behavior |
-|--------|----------|
-| Register | Validate invite code → hash password (Web Crypto or bcryptjs) → save user → set session |
-| Login | Match email + password hash → set session |
-| Logout | Clear `schoolchat:session` |
-| Generate invite | Append new code to `schoolchat:invite_codes` |
+```typescript
+/** Public tutor metadata - safe to send to the browser. */
+export interface AiPersonality {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  accentColor?: string;
+  icon?: string;
+  isDefault: boolean;
+  sortOrder: number;
+}
 
-**Bootstrap:** On first app load, if no invite codes exist, seed one default code (e.g. `SCHOOL01`) so the first user can register.
+/** Admin-only create/update payload includes systemPrompt. */
+export interface AiPersonalityInput {
+  slug: string;
+  name: string;
+  description: string;
+  systemPrompt: string;
+  accentColor?: string;
+  icon?: string;
+  enabled?: boolean;
+  sortOrder?: number;
+}
+```
 
-### Friends (local)
+### Auth flow
 
-| Action | Behavior |
-|--------|----------|
-| Add friend | Lookup username in `schoolchat:users` → create pending friendship |
-| Accept/decline | Update friendship status in `schoolchat:friends` |
-| Block | Set status to `blocked` |
+1. User registers with invite code + username + password
+2. Server validates invite, hashes password (bcrypt), saves user, returns JWT
+3. Client stores JWT + session; sends `Authorization` header on subsequent requests
+4. Login matches username + password hash → JWT
 
-Friend discovery is limited to users registered **on the same browser** (same `localStorage`). For a multi-user demo, register two accounts in two tabs or use separate browser profiles.
+**Bootstrap:** Server seeds default invite code `SCHOOL01` on first run.
 
-### Messaging (local)
-
-| Action | Behavior |
-|--------|----------|
-| List conversations | Read `schoolchat:conversations`, attach last message + unread count |
-| Send message | Append to `schoolchat:messages[id]`, update conversation `updated_at` |
-| Mark read | Update `schoolchat:read_state` |
-| Unread count | Messages after `lastReadAt` from the other user |
-
-No WebSockets. UI updates synchronously after write; listen to `window.storage` event for cross-tab refresh.
+### Messaging flow
 
 ```mermaid
 sequenceDiagram
   participant UI as React_UI
+  participant Poll as usePolling
   participant Chat as chatService
-  participant Store as storageService
-  participant LS as localStorage
+  participant API as Fastify_API
+  participant DB as SQLite
 
   UI->>Chat: sendMessage(conversationId, content)
-  Chat->>Store: appendMessage(...)
-  Store->>LS: JSON.stringify
-  Store-->>Chat: message
+  Chat->>API: POST /conversations/:id/messages
+  API->>DB: INSERT message
+  API-->>Chat: message
   Chat-->>UI: message
-  UI->>UI: Re-render chat + unread badges
+
+  loop Every 5s
+    Poll->>Chat: listConversations()
+    Chat->>API: GET /conversations
+    API->>DB: SELECT + unread counts
+    API-->>UI: updated list
+  end
 ```
+
+**Unread counts:** Server computes messages after `last_read_at` from the other user. Opening a chat calls `POST /conversations/:id/read`.
 
 ---
 
-## AI proxy (minimal backend)
-
-Only the AI path hits the server. No database on the server.
+## AI proxy
 
 **Endpoint:** `POST /api/ai/chat`
 
@@ -264,54 +368,84 @@ Only the AI path hits the server. No database on the server.
 
 ```json
 {
-  "mode": "learn",
+  "mode": "teacher",
+  "personalityId": "math",
   "messages": [
-    { "role": "user", "content": "Explain photosynthesis" }
+    { "role": "user", "content": "Explain quadratic equations" }
   ]
 }
 ```
+
+- `personalityId` - optional for `teacher` mode; slug or id of a server personality. If omitted, server uses the default general tutor.
+- `personalityId` - ignored for `chat` mode (casual companion uses a fixed prompt).
 
 **Response:**
 
 ```json
 {
-  "reply": { "role": "assistant", "content": "..." }
+  "reply": { "role": "assistant", "content": "..." },
+  "personality": { "id": "...", "name": "[AI Twin] Praveen Sir", "slug": "math" }
 }
 ```
 
-**Location:** `apps/api/src/services/aiService.ts` — wraps resilient-llm.
-
-```typescript
-import { ResilientLLM } from 'resilient-llm';
-
-const llm = new ResilientLLM({
-  aiService: process.env.LLM_PRIMARY_PROVIDER,
-  fallback: process.env.LLM_FALLBACK_PROVIDERS?.split(','),
-  model: process.env.LLM_MODEL,
-  retries: 3,
-  rateLimitConfig: { requestsPerMinute: 30 },
-});
-```
+**Location:** `apps/api/src/services/aiService.ts` - wraps resilient-llm. Prompt resolution in `apps/api/src/services/personalityService.ts`.
 
 **Client flow**
 
-1. User sends message in AI chat
-2. `aiService` saves user message to `localStorage`
-3. `aiService` POSTs mode + last 20 messages to `/api/ai/chat`
-4. Server prepends system prompt, calls `llm.chat()`, returns reply
-5. `aiService` saves assistant message to `localStorage`
+1. Teacher page loads → `GET /api/ai/personalities` → render personality cards
+2. Student picks a personality → client creates or resumes an `AiConversation` with `personalityId`
+3. User sends message → `aiService` saves to `localStorage`
+4. `aiService` POSTs `mode`, `personalityId`, and last 20 messages to `/api/ai/chat`
+5. Server loads personality from SQLite, prepends `system_prompt`, calls `llm.chat()`, returns reply
+6. `aiService` saves assistant message to `localStorage`
+
+```mermaid
+sequenceDiagram
+  participant UI as Teacher_Page
+  participant Client as aiService
+  participant API as Fastify
+  participant DB as SQLite
+  participant LLM as resilient_llm
+
+  UI->>API: GET /ai/personalities
+  API->>DB: SELECT enabled personalities
+  API-->>UI: name, description, slug (no prompts)
+
+  UI->>Client: startChat(personalityId)
+  Client->>Client: create/resume AiConversation
+
+  UI->>Client: sendMessage(content)
+  Client->>API: POST /ai/chat { mode: teacher, personalityId, messages }
+  API->>DB: load system_prompt for personality
+  API->>LLM: chat(system + history)
+  LLM-->>API: reply
+  API-->>Client: reply + personality metadata
+  Client->>Client: save to localStorage
+```
+
+**Modes**
+
+- **Teacher** - Teacher tab shows personality picker; each thread bound to one personality (or default)
+- **Chat** - single pinned casual thread on Chats list; fixed system prompt, no personalities
 
 **System prompts**
 
-- **Learn:** "You are a friendly tutor for students aged 14–18. Explain clearly, ask if they want a quiz, never produce harmful content. Say when unsure."
-- **Chat:** "You are a fun, age-appropriate chat companion. Keep responses concise and safe for teens."
+- **Default general tutor** - friendly tutor for students aged 14–18; explain clearly, offer quizzes, stay safe (current learn prompt)
+- **Specialized personalities** - custom `system_prompt` per row in `ai_personalities`; edited on server without redeploying the web app
+- **Chat (casual)** - fun, age-appropriate companion; not personality-based
 
-**Safety & limits**
+**Prompt security**
+
+- `system_prompt` is stored only in SQLite and used inside `personalityService` / `aiService`
+- Public and authenticated student routes never include prompt text in responses
+- Client sends `personalityId` only; server resolves the prompt
+
+**Safety**
 
 - LLM API keys server-side only
-- Server rate limit by IP (e.g. 20 requests/hour)
-- Reject empty or oversized payloads (>4k chars)
-- Static disclaimer in AI UI
+- Static disclaimer banner in AI UI
+- All personalities inherit a base safety clause appended server-side (harmful content refusal, age-appropriate tone)
+- No separate content moderation layer beyond prompts
 
 ---
 
@@ -319,76 +453,49 @@ const llm = new ResilientLLM({
 
 | Concern | Approach |
 |---------|----------|
-| Passwords | Hash with bcryptjs before storing in `localStorage` |
-| Sessions | `schoolchat:session` key; cleared on logout |
-| Invite codes | Validated from `schoolchat:invite_codes` |
-| Data isolation | All data scoped to this browser origin |
-| Images | Client-side size/type validation before base64 encode |
-| HTTPS | Required in production |
+| Passwords | bcrypt hash in SQLite |
+| Sessions | JWT (configurable secret via `JWT_SECRET`) |
+| Invite codes | Validated server-side; use count tracked |
+| CORS | Restricted to `WEB_ORIGIN` |
+| Images | Client-side size/type validation; base64 in SQLite |
+| HTTPS | Required in production (reverse proxy) |
 | AI keys | Never exposed to client |
-
-**Prototype caveats (document in app):**
-
-- Data is lost if the user clears site data
-- Passwords in `localStorage` are not production-grade security
-- Friend chat does not sync across devices until a backend is added
+| Personality prompts | Server-only; never returned in API responses |
+| Admin personality API | Deferred - edit SQLite seed for v1 |
 
 ---
 
 ## Visual design (Neon theme)
 
-Dark-first UI with vivid neon accents, soft glows, and high contrast. Inspired by cyberpunk / synthwave aesthetics — energetic but readable for daily school chat.
+Dark-first UI with vivid neon accents, soft glows, and high contrast. Layout patterns follow familiar chat-app conventions (list → thread, bottom nav, search, FAB) with neon styling.
 
 ### Design tokens
 
-Define in `apps/web/src/styles/theme.css` as CSS custom properties:
+Defined in `apps/web/src/styles/theme.css`:
 
-| Token | Value | Usage |
-|-------|-------|-------|
-| `--bg-primary` | `#0a0a0f` | Page background |
-| `--bg-surface` | `#12121a` | Cards, chat list rows, panels |
-| `--bg-elevated` | `#1a1a26` | Input fields, modals |
-| `--text-primary` | `#f0f0f5` | Body text |
-| `--text-muted` | `#8888a0` | Timestamps, placeholders |
-| `--neon-cyan` | `#00f5ff` | Primary actions, sent messages, active nav |
-| `--neon-magenta` | `#ff00aa` | AI section accent, Learn mode |
-| `--neon-green` | `#39ff14` | Online status, success states |
-| `--neon-purple` | `#bf00ff` | Chat mode, secondary highlights |
-| `--border-subtle` | `rgba(255, 255, 255, 0.08)` | Dividers |
-| `--glow-cyan` | `0 0 12px rgba(0, 245, 255, 0.4)` | Buttons, focus rings |
-| `--glow-magenta` | `0 0 12px rgba(255, 0, 170, 0.4)` | AI elements |
-
-### Component styling
-
-- **Background:** solid dark base; optional subtle radial gradient (deep purple → black) on auth screens
-- **Chat bubbles:** own messages use `--neon-cyan` border + faint glow; received messages use `--bg-elevated` with subtle border
-- **Buttons:** filled neon on dark, or outlined with glow on hover/focus
-- **Bottom nav:** dark bar; active tab icon + label in `--neon-cyan` with glow
-- **Unread badges:** small `--neon-magenta` pill with glow
-- **Inputs:** dark fill, neon border on focus (`box-shadow: var(--glow-cyan)`)
-- **Avatars:** circular with 2px neon ring
+| Token | Usage |
+|-------|-------|
+| `--neon-cyan` | Primary actions, sent messages, active nav, friend chat |
+| `--neon-magenta` | AI section accent, Teacher mode, unread badges |
+| `--neon-green` | Online/success states |
+| `--neon-purple` | Chat mode accent |
+| `--glow-cyan` / `--glow-magenta` | Buttons, focus rings, badges |
 
 ### AI vs friend chat distinction
 
 | Area | Friend chat | AI chat |
 |------|-------------|---------|
 | Accent color | `--neon-cyan` | `--neon-magenta` |
-| Header badge | — | "AI" pill with magenta glow |
-| Banner | — | Magenta-tinted strip: "You are chatting with AI — not a real person" |
-| Learn mode | — | Cyan accent |
-| Chat mode | — | Purple accent |
+| Header badge | - | "AI" pill with magenta glow |
+| Banner | - | "You are chatting with AI - not a real person" |
+| Teacher mode | - | Magenta accent; personality picker + per-tutor threads |
+| Chat mode | - | Purple accent; pinned on Chats list |
 
-### Typography & assets
+### Layout
 
-- **Font:** `Inter` or `Space Grotesk` for UI; system fallback
-- **Icons:** Lucide React — stroke icons pick up neon color on active states
-- **Motion:** subtle 150–200ms transitions on hover/focus; no heavy animations (performance on mobile)
-
-### Accessibility
-
-- Maintain WCAG AA contrast for text on dark backgrounds
-- Neon glow is decorative only — do not rely on color alone for status (pair with icons/labels)
-- Respect `prefers-reduced-motion` (disable glow pulse animations)
+- **Full-width** chat homepage (`chat-home`) - same width as chat detail page
+- **Bottom nav** spans full viewport width
+- **Font:** Space Grotesk
 
 ---
 
@@ -397,21 +504,23 @@ Define in `apps/web/src/styles/theme.css` as CSS custom properties:
 ```
 apps/web/src/
 ├── styles/
-│   ├── theme.css              # neon design tokens
-│   └── global.css             # base styles, dark reset
+│   ├── theme.css
+│   └── global.css
+├── api/
+│   └── client.ts
 ├── storage/
-│   └── storageService.ts      # localStorage wrapper
+│   └── storageService.ts      # AI history only
 ├── services/
 │   ├── authService.ts
 │   ├── friendService.ts
 │   ├── chatService.ts
-│   └── aiService.ts           # calls AI proxy, saves to localStorage
+│   └── aiService.ts
 ├── pages/
 │   ├── LoginPage.tsx
 │   ├── RegisterPage.tsx
-│   ├── ChatsPage.tsx
+│   ├── ChatsPage.tsx          # full-width; pinned AI + onboarding
 │   ├── ChatPage.tsx
-│   ├── AIPage.tsx
+│   ├── AIPage.tsx             # Teacher personality picker + recent sessions
 │   ├── AIChatPage.tsx
 │   ├── FriendsPage.tsx
 │   └── SettingsPage.tsx
@@ -420,80 +529,116 @@ apps/web/src/
 │   ├── ConversationList.tsx
 │   ├── MessageInput.tsx
 │   ├── AIChatPanel.tsx
+│   ├── PersonalityCard.tsx    # teacher tutor tile
 │   ├── BottomNav.tsx
-│   └── NeonButton.tsx
+│   ├── NeonButton.tsx
+│   ├── ScreenHeader.tsx
+│   ├── SearchBar.tsx
+│   ├── NewChatFab.tsx
+│   ├── OnboardingEmptyState.tsx
+│   └── PinnedAiChatRow.tsx
 └── hooks/
-    ├── useAuth.ts
+    ├── useAuth.tsx
     ├── useConversations.ts
-    └── useLocalStorage.ts     # reactive sync with storage + storage events
+    ├── usePolling.ts
+    └── useLocalStorage.ts
 ```
-
-**Unread counts**
-
-- Computed from `read_state` vs message timestamps in `chatService`
-- Updated immediately on send/receive (local write)
-- Opening a chat calls `markAsRead`
 
 ---
 
-## Deployment (v1)
+## Deployment
 
 | Component | Service |
 |-----------|---------|
-| Web | Static host (Vercel, Cloudflare Pages, GitHub Pages) |
-| AI proxy | Optional small Node host (Railway, Fly.io) or local dev only |
+| API + web (production) | Single VPS - Fastify with `SERVE_STATIC=true` |
+| Database | SQLite file at `DATABASE_PATH` |
+| Process manager | pm2 |
+| HTTPS | Caddy or nginx reverse proxy |
+| Backup | Regular copy of SQLite file |
 
-No database, Redis, or object storage to provision.
+See [README.md](README.md) for env vars and setup steps.
 
 ---
 
 ## Environment variables
 
-```
-# AI proxy only (apps/api)
+```env
+# apps/api/.env
 LLM_PRIMARY_PROVIDER=openai
 LLM_FALLBACK_PROVIDERS=anthropic,gemini
 LLM_MODEL=gpt-4o-mini
 OPENAI_API_KEY=
 ANTHROPIC_API_KEY=
 
-# Web (apps/web)
-VITE_AI_API_URL=http://localhost:3001/api
+PORT=3001
+WEB_ORIGIN=http://localhost:5173
+JWT_SECRET=change-me-in-production
+DATABASE_PATH=./data/schoolchat.db
+
+# Production: serve built web app from the same process
+SERVE_STATIC=false
+WEB_DIST_PATH=../web/dist
+
+# Admin API for managing AI personalities (optional)
+ADMIN_SECRET=change-me-in-production
 ```
+
+Vite dev server proxies `/api` to the API on port 3001.
 
 ---
 
-## Implementation order
+## Implementation status
 
-1. **Scaffold** — Vite + React, shared types, neon theme tokens
-2. **Storage layer** — `storageService` + localStorage schema
-3. **Auth + invites** — register, login, logout, seed invite code
-4. **Friends** — requests, accept/decline, block (local users)
-5. **1:1 chat** — conversations, messages, read state, unread badges
-6. **Images** — base64 encode, size validation, preview in chat
-7. **AI proxy** — thin Fastify route + resilient-llm
-8. **AI chat UI** — Learn/Chat modes, history in localStorage
-9. **Polish** — mobile layout, storage event sync, data-loss notice in settings
+| Phase | Status |
+|-------|--------|
+| Scaffold - Vite + React, shared types, neon theme | ✅ Done |
+| SQLite schema + seed invite code | ✅ Done |
+| JWT auth + register/login/me + invite generation | ✅ Done |
+| Friends - requests, accept/decline, block (API) | ✅ Done |
+| 1:1 chat - conversations, messages, read state, unread | ✅ Done |
+| Images - base64 encode, size validation, preview | ✅ Done |
+| AI proxy - Fastify route + resilient-llm | ✅ Done |
+| AI chat UI - Teacher/Chat modes, localStorage history | ✅ Done |
+| Teacher personalities - server registry + picker UI | ✅ Done |
+| Cross-device sync - REST + polling | ✅ Done |
+| Username-based auth (no email) | ✅ Done |
+| Onboarding empty state | ✅ Done |
+| Full-width neon chat layout | ✅ Done |
+| VPS deployment docs | ✅ Done |
+| Avatar upload UI | Not implemented |
+| Unfriend/block UI | Not implemented (API ready) |
+| Push notifications | Out of scope |
 
 ---
 
 ## Testing strategy
 
-1. **Happy path:** Register with invite → add friend (second local account) → send message → see it in thread and unread count
-2. **Edge case:** Register with invalid/expired invite code → error shown
-3. **Edge case:** Blocked user cannot send message → error shown
+Integration tests in `apps/api/src/app.test.ts` (Vitest, in-memory SQLite):
+
+1. **Happy path:** Register with invite → add friend → send message → see in thread
+2. **Edge case:** Register with invalid invite code → error
+3. **Edge case:** Blocked user cannot send message → error
+4. **Edge case (planned):** Unknown or disabled `personalityId` on `/ai/chat` → 400 with fallback hint
+5. **Happy path (planned):** List personalities → start math tutor chat → server uses math system prompt
 
 ---
 
 ## Out of scope for v1
 
-- Server database, WebSockets, cross-device sync
+- WebSockets / true real-time push
 - Group chats, voice/video, push notifications
 - End-to-end encryption
 - Message edit/delete, search, typing indicators
 - Native mobile apps
-- Cloud image storage
+- Cloud image storage (CDN/S3)
+- AI history sync to server
 
-## Future migration path
+## Future enhancements
 
-When ready for real multi-user chat, replace `storageService` calls with REST/WebSocket API calls and add PostgreSQL on the backend. The data model and UI structure stay largely the same.
+- WebSocket or SSE for instant message delivery
+- Avatar upload UI
+- Unfriend/block actions in Friends UI
+- Sync AI history to server per user
+- PostgreSQL if user count grows beyond SQLite comfort zone
+- Personality usage analytics (which tutors students use most)
+- Per-personality model or temperature overrides (advanced admin fields)

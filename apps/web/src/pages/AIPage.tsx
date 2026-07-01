@@ -1,72 +1,98 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import type { AiMode } from '@school-chat/shared';
-import { NeonButton } from '../components/NeonButton';
+import type { AiPersonality } from '@school-chat/shared';
+import { PersonalityCard } from '../components/PersonalityCard';
+import { ScreenHeader } from '../components/ScreenHeader';
+import { TeacherDisplayName, normalizeTeacherName } from '../components/TeacherDisplayName';
 import { useLocalStorageSync } from '../hooks/useLocalStorage';
 import { aiService } from '../services/aiService';
+import { formatListTime } from '../utils/formatTime';
+import '../components/ConversationList.css';
 
-/** Lists AI conversation threads and lets user start a new one. */
+/** Teacher page - pick a tutor personality and resume past sessions. */
 export function AIPage() {
   const navigate = useNavigate();
   const { version } = useLocalStorageSync();
-  const [mode, setMode] = useState<AiMode>('learn');
-  const [showPicker, setShowPicker] = useState(false);
+  const [personalities, setPersonalities] = useState<AiPersonality[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  const conversations = useMemo(() => aiService.listConversations(), [version]);
+  useEffect(() => {
+    aiService
+      .fetchPersonalities()
+      .then(setPersonalities)
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : 'Failed to load teachers.');
+      })
+      .finally(() => setLoading(false));
+  }, []);
 
-  const startChat = () => {
-    const conv = aiService.createConversation(mode);
-    navigate(`/ai/${conv.id}`);
+  const recentSessions = useMemo(() => aiService.listTeacherConversations(), [version]);
+
+  const handleSelect = (personality: AiPersonality) => {
+    const conversation = aiService.getOrCreateTeacherChat(personality);
+    navigate(`/ai/${conversation.id}`);
   };
 
   return (
-    <div className="page">
-      <h1 className="page-header">AI Chat</h1>
+    <div className="screen">
+      <ScreenHeader title="Teacher" />
 
-      {!showPicker ? (
-        <NeonButton variant="magenta" onClick={() => setShowPicker(true)}>
-          + New AI chat
-        </NeonButton>
-      ) : (
-        <div style={{ marginBottom: '1rem' }}>
-          <div className="mode-picker">
-            <button
-              type="button"
-              className={`mode-btn learn ${mode === 'learn' ? 'active' : ''}`}
-              onClick={() => setMode('learn')}
-            >
-              Learn
-            </button>
-            <button
-              type="button"
-              className={`mode-btn chat ${mode === 'chat' ? 'active' : ''}`}
-              onClick={() => setMode('chat')}
-            >
-              Chat
-            </button>
-          </div>
-          <NeonButton variant="magenta" onClick={startChat}>
-            Start
-          </NeonButton>
-        </div>
-      )}
+      <div className="page">
+        <p className="teacher-ai-intro">Chat with your teacher&apos;s AI assistant</p>
 
-      <div style={{ marginTop: '1.5rem' }}>
-        {conversations.length === 0 ? (
-          <div className="empty-state">
-            <p>No AI conversations yet.</p>
-            <p>Start one to learn or chat for fun!</p>
-          </div>
+        {error && <p className="error-text">{error}</p>}
+
+        {loading ? (
+          <div className="empty-state">Loading teachers...</div>
         ) : (
-          conversations.map((conv) => (
-            <Link key={conv.id} to={`/ai/${conv.id}`} className="list-row" style={{ display: 'flex', color: 'inherit' }}>
-              <div className="list-row-content">
-                <div className="list-row-title">{conv.title}</div>
-                <div className="list-row-subtitle">{conv.mode === 'learn' ? 'Learn mode' : 'Chat mode'}</div>
-              </div>
-              <span className="ai-badge">AI</span>
-            </Link>
-          ))
+          <div className="personality-grid">
+            {personalities.map((personality) => (
+              <PersonalityCard
+                key={personality.id}
+                personality={personality}
+                onSelect={() => handleSelect(personality)}
+              />
+            ))}
+          </div>
+        )}
+
+        {recentSessions.length > 0 && (
+          <>
+            <h2 className="teacher-section-title">Recent sessions</h2>
+            <div>
+              {recentSessions.map(({ conversation, lastMessage }) => (
+                <Link
+                  key={conversation.id}
+                  to={`/ai/${conversation.id}`}
+                  className="conversation-row"
+                  style={{ color: 'inherit' }}
+                >
+                  <div className="avatar avatar--ai">
+                    {normalizeTeacherName(conversation.personalityName ?? conversation.title).charAt(0)}
+                  </div>
+                  <div className="conversation-row__body">
+                    <div className="conversation-row__top">
+                      <span className="conversation-row__name">
+                        <TeacherDisplayName name={conversation.personalityName ?? conversation.title} />
+                      </span>
+                      <span className="conversation-row__time">
+                        {formatListTime(lastMessage?.createdAt ?? conversation.createdAt)}
+                      </span>
+                    </div>
+                    <div className="conversation-row__bottom">
+                      <span className="conversation-row__preview">
+                        {lastMessage
+                          ? `${lastMessage.role === 'user' ? 'You: ' : ''}${lastMessage.content}`
+                          : 'Tap to start learning'}
+                      </span>
+                      <span className="ai-badge">AI</span>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </>
         )}
       </div>
     </div>

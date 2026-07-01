@@ -2,12 +2,18 @@
   --bg-primary: #0a0a0f;
   --bg-surface: #12121a;
   --bg-elevated: #1a1a26;
+  --header-bg: #12121a;
+  --chat-bg: #0a0a0f;
   --text-primary: #f0f0f5;
   --text-muted: #8888a0;
   --neon-cyan: #00f5ff;
   --neon-magenta: #ff00aa;
   --neon-green: #39ff14;
   --neon-purple: #bf00ff;
+  --accent-primary: var(--neon-cyan);
+  --accent-primary-hover: var(--neon-cyan);
+  --bubble-out: rgba(0, 245, 255, 0.1);
+  --bubble-in: var(--bg-elevated);
   --border-subtle: rgba(255, 255, 255, 0.08);
   --glow-cyan: 0 0 12px rgba(0, 245, 255, 0.4);
   --glow-magenta: 0 0 12px rgba(255, 0, 170, 0.4);

@@ -1,35 +1,41 @@
 # School Friends Chat + AI
 
-A neon-themed school chat app with localStorage persistence and an AI chatbot.
+A neon-themed school chat app to talk to friends, teachers, and their AI assistants — an alternative to WhatsApp for your school life.
 
-## Setup
+## Prerequisites
+
+- Node.js 20+
+- npm
+
+## Quick start
 
 ```bash
 npm install
-```
-
-### Web app
-
-```bash
+cp apps/api/.env.example apps/api/.env
 npm run dev
 ```
 
-Opens at http://localhost:5173
+Edit `apps/api/.env` before chatting with AI:
 
-### AI proxy (optional, for AI chat)
+| Variable | Required | Notes |
+|----------|----------|-------|
+| `JWT_SECRET` | Yes | Any non-empty value for local dev |
+| `OPENAI_API_KEY` | For AI chat | See `LLM_*` vars in `.env.example` |
 
-Copy `apps/api/.env.example` to `apps/api/.env` and add your LLM API key.
+- Web: [http://localhost:5173](http://localhost:5173)
+- API: [http://localhost:3001](http://localhost:3001)
 
-```bash
-npm run dev:api
-```
+Run API and web separately if needed: `npm run dev:api` / `npm run dev:web`.
 
-## First use
+## Features
 
-1. Register with invite code `SCHOOL01`
-2. Log out and register a second account (or generate an invite in Settings)
-3. Add friend by username, accept request, start chatting
-4. Use the AI tab for Learn or Chat mode (requires API running)
+- **Invite-only accounts** — register with a code (`SCHOOL01` for first use); username + password
+- **1:1 friend chat** — text and images, read receipts, unread counts; syncs across devices via the API
+- **Friend requests** — add by username, accept or decline
+- **Invite codes** — generate and share from Settings
+- **Teacher AI Twins** — Chat with AI Twins of your teachers
+- **AI chat for fun** — chat with AI for entertainment
+- **Neon WhatsApp-like UI** — dark theme, WhatsApp-familiar layout, full-width chat pages
 
 ## Tests
 
@@ -37,6 +43,12 @@ npm run dev:api
 npm test
 ```
 
-## Note
+## Docs
 
-All data lives in browser localStorage on this device. Messages do not sync across devices in v1.
+| Document | Contents |
+|----------|----------|
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Full local setup, env reference, contribution workflow |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Production VPS deployment |
+| [docs/AI_TWINS.md](docs/AI_TWINS.md) | Adding and editing Teacher AI Twins |
+| [REQUIREMENTS.md](REQUIREMENTS.md) | Product requirements and feature checklist |
+| [TECHNICAL_DESIGN.md](TECHNICAL_DESIGN.md) | Architecture, API, and data model |

@@ -1,5 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 import { chatWithAi } from '../services/aiService.js';
+import {
+  getEnabledPersonalities,
+  PersonalityError,
+  resolvePersonality,
+} from '../services/personalityService.js';
 
 interface RateEntry {
   count: number;
@@ -9,6 +14,9 @@ interface RateEntry {
 const rateLimits = new Map<string, RateEntry>();
 const RATE_LIMIT = 20;
 const RATE_WINDOW_MS = 60 * 60 * 1000;
+
+const CHAT_MODE_PROMPT =
+  'You are a fun, age-appropriate chat companion. Keep responses concise and safe for teens.';
 
 /** Simple in-memory per-IP rate limiter. */
 function checkRateLimit(ip: string): boolean {
@@ -25,14 +33,12 @@ function checkRateLimit(ip: string): boolean {
   return true;
 }
 
-const SYSTEM_PROMPTS = {
-  learn:
-    'You are a friendly tutor for students aged 14–18. Explain clearly, ask if they want a quiz, never produce harmful content. Say when unsure.',
-  chat: 'You are a fun, age-appropriate chat companion. Keep responses concise and safe for teens.',
-};
-
 /** Registers AI chat routes on the Fastify instance. */
 export async function aiRoutes(app: FastifyInstance) {
+  app.get('/ai/personalities', async (_request, reply) => {
+    return reply.send({ personalities: getEnabledPersonalities() });
+  });
+
   app.post('/ai/chat', async (request, reply) => {
     const ip = request.ip;
     if (!checkRateLimit(ip)) {
@@ -41,11 +47,12 @@ export async function aiRoutes(app: FastifyInstance) {
 
     const body = request.body as {
       mode?: string;
+      personalityId?: string;
       messages?: Array<{ role: string; content: string }>;
     };
 
-    if (body.mode !== 'learn' && body.mode !== 'chat') {
-      return reply.status(400).send({ error: 'Invalid mode. Use "learn" or "chat".' });
+    if (body.mode !== 'teacher' && body.mode !== 'chat') {
+      return reply.status(400).send({ error: 'Invalid mode. Use "teacher" or "chat".' });
     }
 
     if (!body.messages?.length) {
@@ -58,17 +65,36 @@ export async function aiRoutes(app: FastifyInstance) {
     }
 
     try {
+      let systemPrompt = CHAT_MODE_PROMPT;
+      let personalityMeta: { id: string; name: string; slug: string } | undefined;
+
+      if (body.mode === 'teacher') {
+        const personality = resolvePersonality(body.personalityId);
+        systemPrompt = personality.systemPrompt;
+        personalityMeta = {
+          id: personality.id,
+          name: personality.name,
+          slug: personality.slug,
+        };
+      }
+
       const replyContent = await chatWithAi(
         body.mode,
-        SYSTEM_PROMPTS[body.mode],
+        systemPrompt,
         body.messages.map((m) => ({
           role: m.role as 'user' | 'assistant',
           content: m.content,
         })),
       );
 
-      return { reply: { role: 'assistant', content: replyContent } };
+      return {
+        reply: { role: 'assistant', content: replyContent },
+        ...(personalityMeta ? { personality: personalityMeta } : {}),
+      };
     } catch (err) {
+      if (err instanceof PersonalityError) {
+        return reply.status(400).send({ error: err.message });
+      }
       request.log.error(err);
       return reply.status(502).send({
         error: err instanceof Error ? err.message : 'AI service unavailable.',

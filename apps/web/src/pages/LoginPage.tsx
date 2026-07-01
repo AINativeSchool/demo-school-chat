@@ -7,7 +7,7 @@ import { AuthError } from '../services/authService';
 /** Login page with neon-themed form. */
 export function LoginPage() {
   const { session, login } = useAuth();
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -19,7 +19,7 @@ export function LoginPage() {
     setError('');
     setLoading(true);
     try {
-      await login(email, password);
+      await login(username, password);
     } catch (err) {
       setError(err instanceof AuthError ? err.message : 'Login failed.');
     } finally {
@@ -31,11 +31,20 @@ export function LoginPage() {
     <div className="auth-page">
       <div className="auth-card">
         <h1>School Chat</h1>
-        <p>Welcome back — log in to continue.</p>
+        <p>Welcome back - log in to continue.</p>
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label htmlFor="email">Email</label>
-            <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            <label htmlFor="username">Username</label>
+            <input
+              id="username"
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              required
+            />
           </div>
           <div className="form-group">
             <label htmlFor="password">Password</label>
