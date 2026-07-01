@@ -73,7 +73,7 @@ A private messaging app for 1:1 chat with school friends, plus an AI chatbot for
 - ✅ Students choose an AI Twin on the **Teacher** page; each personality has a **server-controlled system prompt** never sent to the browser
 - ✅ **Named AI Twin teachers** - Pradeep Sir (AI, Startups), Praveen Sir (Math, Puzzles), Surya Sir (Coding, Software), Mayank Sir (Decision Making, Judgement); subtle **AI Twin** UI label after each name
 - ✅ **Default** - Pradeep Sir is the default when no personality is specified
-- ✅ **Server-managed (v1)** - personalities defined via SQLite seed data; edit seed and redeploy to change prompts (admin API deferred)
+- ✅ **Server-managed (v1)** - personalities defined via SQLite seed data; edit seed and redeploy to change prompts ([docs/PERSONALITIES.md](docs/PERSONALITIES.md))
 - ✅ **Student-facing picker** - Teacher page shows personality cards; tap to start or resume a chat with that tutor
 - ✅ **Per-personality history** - one ongoing thread per personality; recent sessions listed on Teacher page
 - ✅ **Coaching openers** - each teacher personality sends a suggestive welcome with starter options (no blank canvas)
@@ -153,7 +153,7 @@ A private messaging app for 1:1 chat with school friends, plus an AI chatbot for
 | Persistence | SQLite on server for app data; localStorage for AI history |
 | Cross-device sync | REST API + HTTP polling (simplest approach) |
 | Hosting | Single VPS with Fastify serving API + optional static web |
-| Teacher AI personalities | SQLite seed data; system prompts never exposed to client; admin API deferred |
+| Teacher AI personalities | SQLite seed data; system prompts never exposed to client; see [docs/PERSONALITIES.md](docs/PERSONALITIES.md) |
 
 ---
 

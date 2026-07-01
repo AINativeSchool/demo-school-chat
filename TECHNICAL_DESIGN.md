@@ -209,7 +209,7 @@ Each label is one or two words. Stored as JSON in `expertise_labels`; returned a
 
 Display names omit prefixes; the web app renders a tiny **AI Twin** badge after each name and multiple **expertise** pills (accent-colored, distinct from the AI Twin tag).
 
-Admins can add, disable, reorder, or edit prompts via admin API or direct DB updates.
+Admins can add, disable, reorder, or edit prompts via seed data in `apps/api/src/db/index.ts` — see [docs/PERSONALITIES.md](docs/PERSONALITIES.md). Admin REST API is deferred for v1.
 
 ---
 
@@ -264,7 +264,7 @@ All routes prefixed with `/api`. Authenticated routes require `Authorization: Be
 
 ### AI personalities (admin - deferred)
 
-Admin REST API is not implemented in v1. Personalities are managed via SQLite seed data in `apps/api/src/db/index.ts`.
+Admin REST API is not implemented in v1. Personalities are managed via SQLite seed data — see [docs/PERSONALITIES.md](docs/PERSONALITIES.md).
 
 **Public personality response shape** (client-safe):
 
