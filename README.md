@@ -2,6 +2,8 @@
 
 A neon-themed school chat app to talk to friends, teachers, and their AI assistants — an alternative to WhatsApp for your school life.
 
+![School Chat landing page — signup, features, and app previews](docs/screenshots/landingpage.jpeg)
+
 ## Prerequisites
 
 - Node.js 20+
