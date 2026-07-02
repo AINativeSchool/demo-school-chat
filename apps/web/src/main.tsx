@@ -16,7 +16,7 @@ if (!root) {
       <StrictMode>
         <ErrorBoundary>
           <BootGate>
-            <BrowserRouter>
+            <BrowserRouter basename={import.meta.env.BASE_URL}>
               <App />
             </BrowserRouter>
           </BootGate>

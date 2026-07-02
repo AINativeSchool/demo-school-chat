@@ -10,6 +10,7 @@ const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:5173';
 const DATABASE_PATH = process.env.DATABASE_PATH ?? path.join(__dirname, '../data/schoolchat.db');
 const JWT_SECRET = process.env.JWT_SECRET ?? 'dev-secret-change-in-production';
 const SERVE_STATIC = process.env.SERVE_STATIC === 'true';
+const BASE_PATH = process.env.BASE_PATH ?? '';
 const WEB_DIST_PATH =
   process.env.WEB_DIST_PATH ?? path.join(__dirname, '../../web/dist');
 
@@ -22,6 +23,7 @@ async function start() {
     webOrigin: WEB_ORIGIN,
     serveStatic: SERVE_STATIC,
     webDistPath: WEB_DIST_PATH,
+    basePath: BASE_PATH,
   });
 
   await app.listen({ port: PORT, host: '0.0.0.0' });
