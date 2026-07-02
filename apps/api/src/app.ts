@@ -62,6 +62,9 @@ export async function buildApp(options: AppOptions = {}) {
 
     const spaPrefix = `${basePath}/` || '/';
     app.get(spaPrefix, async (_request, reply) => reply.sendFile('index.html'));
+    if (basePath) {
+      app.get('/', async (_request, reply) => reply.redirect(spaPrefix));
+    }
 
     app.setNotFoundHandler((request, reply) => {
       if (request.url.startsWith(apiPrefix)) {
