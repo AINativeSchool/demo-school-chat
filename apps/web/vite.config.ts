@@ -17,7 +17,29 @@ export default defineConfig(({ mode }) => {
 
   return {
     base: basePath,
-    plugins: [react()],
+    plugins: [
+      react(),
+      {
+        name: 'school-chat-subpath-dev-fallback',
+        configureServer(server) {
+          if (basePath === '/') return;
+
+          // Vite expects the public base URL to end with a slash (e.g. /chat/).
+          // Some proxies or humans may hit /chat without the trailing slash.
+          const withoutTrailingSlash = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath;
+
+          server.middlewares.use((req, res, next) => {
+            if (req.url === withoutTrailingSlash) {
+              res.statusCode = 302;
+              res.setHeader('Location', basePath);
+              res.end();
+              return;
+            }
+            next();
+          });
+        },
+      },
+    ],
     build: {
       target: ['es2020', 'safari14', 'chrome87', 'firefox78'],
     },

@@ -76,6 +76,12 @@ export async function buildApp(options: AppOptions = {}) {
         return reply.redirect(spaPrefix);
       }
 
+      // Some clients/proxies hit the base path without a trailing slash (e.g. /chat).
+      // Serve the SPA directly instead of relying on redirects.
+      if (basePath && request.url === basePath) {
+        return reply.sendFile('index.html');
+      }
+
       // SPA-fallback only under the configured base path.
       if (basePath && request.url.startsWith(`${basePath}/`)) {
         return reply.sendFile('index.html');
