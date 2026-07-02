@@ -11,7 +11,7 @@ export const STORAGE_KEYS = {
   aiMessages: 'schoolchat:ai_messages',
 } as const;
 
-export const DEFAULT_INVITE_CODE = 'SCHOOL01';
+export const DEFAULT_INVITE_CODE = 'AINATIVESCHOOL';
 
 export const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 

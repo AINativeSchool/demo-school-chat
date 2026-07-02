@@ -1,8 +1,10 @@
 import { useState, type FormEvent } from 'react';
 import { Link, Navigate } from 'react-router-dom';
+import { AuthPageShell } from '../components/AuthPageShell';
 import { NeonButton } from '../components/NeonButton';
 import { useAuth } from '../hooks/useAuth';
 import { AuthError } from '../services/authService';
+import { DEFAULT_INVITE_CODE } from '../storage/constants';
 
 /** Login page with neon-themed form. */
 export function LoginPage() {
@@ -28,10 +30,10 @@ export function LoginPage() {
   };
 
   return (
-    <div className="auth-page">
+    <AuthPageShell>
       <div className="auth-card">
         <h1>School Chat</h1>
-        <p>Welcome back - log in to continue.</p>
+        <p>Welcome back — log in to continue.</p>
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label htmlFor="username">Username</label>
@@ -62,11 +64,12 @@ export function LoginPage() {
               {loading ? 'Logging in...' : 'Log in'}
             </NeonButton>
             <p className="form-link">
-              No account? <Link to="/register">Register with invite code</Link>
+              No account?{' '}
+              <Link to={`/register?code=${DEFAULT_INVITE_CODE}`}>Register with invite code</Link>
             </p>
           </div>
         </form>
       </div>
-    </div>
+    </AuthPageShell>
   );
 }

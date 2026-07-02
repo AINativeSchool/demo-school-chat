@@ -11,7 +11,7 @@ import type {
   User,
 } from '@school-chat/shared';
 
-const DEFAULT_INVITE_CODE = 'SCHOOL01';
+const DEFAULT_INVITE_CODE = 'AINATIVESCHOOL';
 
 let db: Database.Database | null = null;
 

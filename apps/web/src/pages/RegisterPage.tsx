@@ -1,14 +1,18 @@
 import { useState, type FormEvent } from 'react';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
+import { AuthPageShell } from '../components/AuthPageShell';
 import { NeonButton } from '../components/NeonButton';
 import { useAuth } from '../hooks/useAuth';
 import { AuthError } from '../services/authService';
+import { DEFAULT_INVITE_CODE } from '../storage/constants';
 
 /** Registration page requiring an invite code. */
 export function RegisterPage() {
   const { session, register } = useAuth();
   const [searchParams] = useSearchParams();
-  const [inviteCode, setInviteCode] = useState(() => searchParams.get('code') ?? '');
+  const [inviteCode, setInviteCode] = useState(
+    () => searchParams.get('code') ?? DEFAULT_INVITE_CODE,
+  );
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -31,12 +35,12 @@ export function RegisterPage() {
   };
 
   return (
-    <div className="auth-page">
+    <AuthPageShell showRegisterLink={false}>
       <div className="auth-card">
-        <h1>Join School Chat</h1>
+        <h1>Create account</h1>
         <p>
-          Register with an invite code. Use <code>SCHOOL01</code> for the first account, or ask a
-          friend for a code they generated in Settings.
+          Sign up with an invite code — new users can use{' '}
+          <code className="invite-code">{DEFAULT_INVITE_CODE}</code>.
         </p>
         <form onSubmit={handleSubmit}>
           <div className="form-group">
@@ -101,6 +105,6 @@ export function RegisterPage() {
           </div>
         </form>
       </div>
-    </div>
+    </AuthPageShell>
   );
 }
