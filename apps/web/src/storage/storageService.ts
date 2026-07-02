@@ -9,11 +9,12 @@ import type {
   User,
 } from '@school-chat/shared';
 import { DEFAULT_INVITE_CODE, STORAGE_KEYS } from './constants';
+import { safeStorage } from './safeStorage';
 
 /** Read JSON from localStorage with a fallback default. */
 function readJson<T>(key: string, fallback: T): T {
   try {
-    const raw = localStorage.getItem(key);
+    const raw = safeStorage.getItem(key);
     if (!raw) return fallback;
     return JSON.parse(raw) as T;
   } catch {
@@ -23,13 +24,17 @@ function readJson<T>(key: string, fallback: T): T {
 
 /** Write JSON to localStorage. */
 function writeJson<T>(key: string, value: T): void {
-  localStorage.setItem(key, JSON.stringify(value));
+  safeStorage.setItem(key, JSON.stringify(value));
 }
 
 /** Single persistence boundary for all app data in localStorage. */
 export const storageService = {
   generateId(): string {
-    return crypto.randomUUID();
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+
+    return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
   },
 
   seedDefaults(): void {
@@ -54,7 +59,7 @@ export const storageService = {
     if (session) {
       writeJson(STORAGE_KEYS.session, session);
     } else {
-      localStorage.removeItem(STORAGE_KEYS.session);
+      safeStorage.removeItem(STORAGE_KEYS.session);
     }
   },
 
@@ -178,8 +183,12 @@ export const storageService = {
     writeJson(STORAGE_KEYS.aiMessages, map);
   },
 
+  saveAiMessagesMap(map: Record<string, AiMessage[]>): void {
+    writeJson(STORAGE_KEYS.aiMessages, map);
+  },
+
   /** Clear all data - useful for tests. */
   clearAll(): void {
-    Object.values(STORAGE_KEYS).forEach((key) => localStorage.removeItem(key));
+    Object.values(STORAGE_KEYS).forEach((key) => safeStorage.removeItem(key));
   },
 };

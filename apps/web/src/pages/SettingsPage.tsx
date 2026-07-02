@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { InviteCode } from '@school-chat/shared';
 import { NeonButton } from '../components/NeonButton';
+import { AppFooter } from '../components/AppFooter';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { useAuth } from '../hooks/useAuth';
 import { authService } from '../services/authService';
@@ -124,6 +125,8 @@ export function SettingsPage() {
       <NeonButton variant="ghost" onClick={handleLogout}>
         Log out
       </NeonButton>
+
+      <AppFooter />
       </div>
     </div>
   );

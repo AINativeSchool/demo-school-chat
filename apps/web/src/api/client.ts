@@ -1,3 +1,5 @@
+import { safeStorage } from '../storage/safeStorage';
+
 const TOKEN_KEY = 'schoolchat:token';
 
 /** Thrown when the API returns a non-success response. */
@@ -23,14 +25,14 @@ export const apiClient = {
   },
 
   getToken(): string | null {
-    return localStorage.getItem(TOKEN_KEY);
+    return safeStorage.getItem(TOKEN_KEY);
   },
 
   setToken(token: string | null): void {
     if (token) {
-      localStorage.setItem(TOKEN_KEY, token);
+      safeStorage.setItem(TOKEN_KEY, token);
     } else {
-      localStorage.removeItem(TOKEN_KEY);
+      safeStorage.removeItem(TOKEN_KEY);
     }
   },
 
