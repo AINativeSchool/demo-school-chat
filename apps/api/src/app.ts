@@ -71,6 +71,11 @@ export async function buildApp(options: AppOptions = {}) {
         return reply.status(404).send({ error: 'Not found.' });
       }
 
+      // If hosted under a sub-path (e.g. /chat), redirect root traffic to that entrypoint.
+      if (basePath && request.url === '/') {
+        return reply.redirect(spaPrefix);
+      }
+
       // SPA-fallback only under the configured base path.
       if (basePath && request.url.startsWith(`${basePath}/`)) {
         return reply.sendFile('index.html');
