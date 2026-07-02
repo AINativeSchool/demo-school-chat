@@ -54,6 +54,7 @@ JWT_SECRET=long-random-secret
 DATABASE_PATH=/var/lib/schoolchat/data.db
 SERVE_STATIC=true
 WEB_DIST_PATH=/path/to/repo/apps/web/dist
+BASE_PATH=/chat
 OPENAI_API_KEY=...
 ```
 
@@ -64,6 +65,7 @@ OPENAI_API_KEY=...
 | `DATABASE_PATH` | Yes | Persistent path outside the repo if possible |
 | `SERVE_STATIC` | Yes | Must be `true` |
 | `WEB_DIST_PATH` | Yes | Absolute path to `apps/web/dist` |
+| `BASE_PATH` | No | Host the app under a sub-path (e.g. `/chat`). Leave empty for root |
 | `OPENAI_API_KEY` | For AI | See `apps/api/.env.example` for `LLM_*` options |
 | `PORT` | No | Default `3001` |
 
@@ -109,6 +111,12 @@ chat.yourdomain.com {
     reverse_proxy localhost:3001
 }
 ```
+
+If you deploy under a sub-path like `/chat`, keep the same reverse proxy. The app will serve:
+
+- the SPA at `/chat`
+- hashed assets at `/chat/assets/*`
+- the API at `/chat/api/*`
 
 ---
 

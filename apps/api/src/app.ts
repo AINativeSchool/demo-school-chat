@@ -17,11 +17,25 @@ export interface AppOptions {
   webOrigin?: string;
   serveStatic?: boolean;
   webDistPath?: string;
+  basePath?: string;
+}
+
+function normalizeBasePath(basePath: string | undefined): string {
+  const raw = (basePath ?? '').trim();
+  if (!raw) return '';
+  const withLeadingSlash = raw.startsWith('/') ? raw : `/${raw}`;
+  const withoutTrailingSlash = withLeadingSlash.endsWith('/')
+    ? withLeadingSlash.slice(0, -1)
+    : withLeadingSlash;
+  return withoutTrailingSlash;
 }
 
 /** Builds the Fastify app used by the server and tests. */
 export async function buildApp(options: AppOptions = {}) {
   const app = Fastify({ logger: false });
+
+  const basePath = normalizeBasePath(options.basePath ?? process.env.BASE_PATH);
+  const apiPrefix = `${basePath}/api`;
 
   await app.register(cors, {
     origin: options.webOrigin ?? 'http://localhost:5173',
@@ -33,24 +47,38 @@ export async function buildApp(options: AppOptions = {}) {
     secret: options.jwtSecret ?? 'test-secret',
   });
 
-  await app.register(authRoutes, { prefix: '/api' });
-  await app.register(inviteRoutes, { prefix: '/api' });
-  await app.register(friendRoutes, { prefix: '/api' });
-  await app.register(conversationRoutes, { prefix: '/api' });
-  await app.register(aiRoutes, { prefix: '/api' });
+  await app.register(authRoutes, { prefix: apiPrefix });
+  await app.register(inviteRoutes, { prefix: apiPrefix });
+  await app.register(friendRoutes, { prefix: apiPrefix });
+  await app.register(conversationRoutes, { prefix: apiPrefix });
+  await app.register(aiRoutes, { prefix: apiPrefix });
 
   if (options.serveStatic) {
     const distPath = options.webDistPath ?? path.join(__dirname, '../../web/dist');
     await app.register(fastifyStatic, {
       root: distPath,
-      prefix: '/',
+      prefix: `${basePath}/`,
     });
 
+    const spaPrefix = `${basePath}/` || '/';
+    app.get(spaPrefix, async (_request, reply) => reply.sendFile('index.html'));
+
     app.setNotFoundHandler((request, reply) => {
-      if (request.url.startsWith('/api')) {
+      if (request.url.startsWith(apiPrefix)) {
         return reply.status(404).send({ error: 'Not found.' });
       }
-      return reply.sendFile('index.html');
+
+      // SPA-fallback only under the configured base path.
+      if (basePath && request.url.startsWith(`${basePath}/`)) {
+        return reply.sendFile('index.html');
+      }
+
+      // If no basePath is configured, keep the old behavior: root SPA.
+      if (!basePath) {
+        return reply.sendFile('index.html');
+      }
+
+      return reply.status(404).send({ error: 'Not found.' });
     });
   }
 

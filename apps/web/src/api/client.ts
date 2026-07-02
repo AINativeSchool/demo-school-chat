@@ -47,7 +47,7 @@ export const apiClient = {
       headers.set('Authorization', `Bearer ${token}`);
     }
 
-    const response = await fetch(`/api${path}`, {
+    const response = await fetch(`${import.meta.env.BASE_URL}api${path}`, {
       ...options,
       headers,
     });

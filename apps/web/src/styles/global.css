@@ -323,6 +323,7 @@ textarea:focus {
   width: 100%;
   max-width: 1020px;
   margin-top: 1.5rem;
+  margin-inline: auto;
   padding-top: 1.25rem;
   text-align: center;
   font-size: 0.8125rem;
