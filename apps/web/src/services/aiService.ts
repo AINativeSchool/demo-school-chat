@@ -249,6 +249,6 @@ export const aiService = {
 
     const map = storageService.getAiMessagesMap();
     delete map[id];
-    localStorage.setItem('schoolchat:ai_messages', JSON.stringify(map));
+    storageService.saveAiMessagesMap(map);
   },
 };

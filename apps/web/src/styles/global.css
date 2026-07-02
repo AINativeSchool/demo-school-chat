@@ -319,6 +319,39 @@ textarea:focus {
   }
 }
 
+.app-footer {
+  width: 100%;
+  max-width: 1020px;
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  text-align: center;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.app-footer__labs a {
+  color: var(--neon-cyan);
+}
+
+.app-footer__labs a:hover {
+  text-decoration: underline;
+}
+
+.app-footer__version {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  opacity: 0.85;
+}
+
+.page .app-footer {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
 .auth-card {
   width: 100%;
   max-width: 340px;
@@ -337,6 +370,20 @@ textarea:focus {
 .auth-card p {
   color: var(--text-muted);
   margin-bottom: 1.5rem;
+}
+
+.auth-card-invite-code {
+  display: block;
+  font-family: monospace;
+  font-size: 0.875rem;
+  color: var(--neon-cyan);
+  letter-spacing: 0.08em;
+  padding: 0.5rem 0.75rem;
+  margin: -0.75rem 0 1.5rem;
+  background: var(--bg-elevated);
+  border-radius: var(--radius);
+  text-align: center;
+  word-break: break-all;
 }
 
 .form-group {

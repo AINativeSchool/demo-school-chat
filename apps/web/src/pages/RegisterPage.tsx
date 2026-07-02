@@ -38,10 +38,8 @@ export function RegisterPage() {
     <AuthPageShell showRegisterLink={false}>
       <div className="auth-card">
         <h1>Create account</h1>
-        <p>
-          Sign up with an invite code — new users can use{' '}
-          <code className="invite-code">{DEFAULT_INVITE_CODE}</code>.
-        </p>
+        <p>Sign up with an invite code — new users can use:</p>
+        <code className="auth-card-invite-code">{DEFAULT_INVITE_CODE}</code>
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label htmlFor="invite">Invite code</label>

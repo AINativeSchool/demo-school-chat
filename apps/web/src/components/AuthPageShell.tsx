@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { AppFooter } from './AppFooter';
 import { AppShowcase } from './AppShowcase';
 import { AuthLandingInfo } from './AuthLandingInfo';
 
@@ -17,6 +18,7 @@ export function AuthPageShell({ children, showRegisterLink = true }: AuthPageShe
         <div className="auth-card-wrap">{children}</div>
       </div>
       <AppShowcase />
+      <AppFooter />
     </div>
   );
 }

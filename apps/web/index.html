@@ -3,13 +3,152 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+    <meta name="theme-color" content="#0a0a0f" />
+    <meta name="color-scheme" content="dark" />
     <title>School Chat</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #0a0a0f;
+        color: #f0f0f5;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      }
+
+      #boot-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.75rem;
+        padding: 2rem;
+        text-align: center;
+        background: #0a0a0f;
+        color: #f0f0f5;
+      }
+
+      #boot-splash h1 {
+        margin: 0;
+        font-size: 1.25rem;
+        font-weight: 600;
+      }
+
+      #boot-splash p {
+        margin: 0;
+        color: #8888a0;
+        max-width: 22rem;
+        line-height: 1.5;
+      }
+
+      #boot-splash button {
+        margin-top: 0.5rem;
+        padding: 0.625rem 1.25rem;
+        border: none;
+        border-radius: 12px;
+        background: #00f5ff;
+        color: #0a0a0f;
+        font: inherit;
+        font-weight: 600;
+      }
+
+      .boot-fallback {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.75rem;
+        padding: 2rem;
+        text-align: center;
+      }
+
+      .boot-fallback h1 {
+        margin: 0;
+        font-size: 1.25rem;
+      }
+
+      .boot-fallback p {
+        margin: 0;
+        color: #8888a0;
+        max-width: 22rem;
+        line-height: 1.5;
+      }
+
+      .boot-fallback button {
+        margin-top: 0.5rem;
+        padding: 0.625rem 1.25rem;
+        border: none;
+        border-radius: 12px;
+        background: #00f5ff;
+        color: #0a0a0f;
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+      }
+    </style>
+    <script>
+      (function () {
+        var splash = document.getElementById('boot-splash');
+        var slowTimer = window.setTimeout(function () {
+          if (!splash || !splash.isConnected) return;
+          var message = splash.querySelector('p');
+          if (message) {
+            message.textContent = 'Still loading… If this stays blank, refresh the page.';
+          }
+        }, 12000);
+
+        function showLoadError(text) {
+          window.clearTimeout(slowTimer);
+          if (!splash || !splash.isConnected) return;
+          var message = splash.querySelector('p');
+          if (message) message.textContent = text;
+          if (splash.querySelector('button')) return;
+          var button = document.createElement('button');
+          button.type = 'button';
+          button.textContent = 'Refresh';
+          button.addEventListener('click', function () {
+            window.location.reload();
+          });
+          splash.appendChild(button);
+        }
+
+        window.addEventListener(
+          'error',
+          function (event) {
+            var target = event.target;
+            if (target && target.tagName === 'SCRIPT') {
+              showLoadError('The app failed to load. Check your connection and refresh.');
+            }
+          },
+          true,
+        );
+
+        window.addEventListener('unhandledrejection', function () {
+          if (!splash || !splash.isConnected) return;
+          showLoadError('The app failed to start. Try refreshing the page.');
+        });
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
   </head>
   <body>
+    <div id="boot-splash" aria-live="polite">
+      <h1>School Chat</h1>
+      <p>Loading…</p>
+    </div>
     <div id="root"></div>
+    <noscript>
+      <div class="boot-fallback">
+        <h1>School Chat</h1>
+        <p>JavaScript is required to use this app.</p>
+      </div>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
