@@ -41,6 +41,80 @@ npm run build
 
 Output: `apps/web/dist`
 
+### Sub-path deployment checklist (e.g. `/chat`)
+
+When hosting the app at `https://yourdomain.com/chat`, you must configure **both**:
+
+- the **API runtime** base path (`BASE_PATH=/chat`) so the server serves the SPA, assets, and API under `/chat/*`
+- the **web build** base path (`VITE_BASE_PATH=/chat/`) so the generated `index.html` requests assets from `/chat/assets/*`
+
+#### 1) Configure API runtime env
+
+Create the API env file:
+
+```bash
+cp apps/api/.env.example apps/api/.env
+```
+
+Set (example):
+
+```env
+SERVE_STATIC=true
+WEB_DIST_PATH=/home/exedev/demo-school-chat/apps/web/dist
+BASE_PATH=/chat
+WEB_ORIGIN=https://yourdomain.com
+JWT_SECRET=long-random-secret
+DATABASE_PATH=/var/lib/schoolchat/data.db
+```
+
+#### 2) Configure web build env (build-time)
+
+Create the web env file:
+
+```bash
+cp apps/web/.env.example apps/web/.env
+```
+
+Set:
+
+```env
+VITE_BASE_PATH=/chat/
+```
+
+Then build:
+
+```bash
+npm run build
+```
+
+If you prefer not to create `apps/web/.env`, you can do a one-off build:
+
+```bash
+VITE_BASE_PATH=/chat/ npm run build
+```
+
+### Building for a sub-path (e.g. `/chat`)
+
+If you host the app at a sub-path like `/chat`, you must also set the **web build base** so the generated `index.html` points to `/chat/assets/*` (not `/assets/*`).
+
+Set the build-time env var (either inline for one-off builds, or via a `.env` file):
+
+```bash
+VITE_BASE_PATH=/chat/ npm run build
+```
+
+Or create a web env file once and keep it in sync with your deployment:
+
+```bash
+cp apps/web/.env.example apps/web/.env
+```
+
+Then set:
+
+```env
+VITE_BASE_PATH=/chat/
+```
+
 ---
 
 ## 2. Production environment
@@ -66,6 +140,7 @@ OPENAI_API_KEY=...
 | `SERVE_STATIC` | Yes | Must be `true` |
 | `WEB_DIST_PATH` | Yes | Absolute path to `apps/web/dist` |
 | `BASE_PATH` | No | Host the app under a sub-path (e.g. `/chat`). Leave empty for root |
+| `VITE_BASE_PATH` | For build | Web build base (e.g. `/chat/`). Must end with `/` |
 | `OPENAI_API_KEY` | For AI | See `apps/api/.env.example` for `LLM_*` options |
 | `PORT` | No | Default `3001` |
 

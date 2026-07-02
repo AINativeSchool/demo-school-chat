@@ -62,10 +62,24 @@ export async function buildApp(options: AppOptions = {}) {
 
     const spaPrefix = `${basePath}/` || '/';
     app.get(spaPrefix, async (_request, reply) => reply.sendFile('index.html'));
+    if (basePath) {
+      app.get('/', async (_request, reply) => reply.redirect(spaPrefix));
+    }
 
     app.setNotFoundHandler((request, reply) => {
       if (request.url.startsWith(apiPrefix)) {
         return reply.status(404).send({ error: 'Not found.' });
+      }
+
+      // If hosted under a sub-path (e.g. /chat), redirect root traffic to that entrypoint.
+      if (basePath && request.url === '/') {
+        return reply.redirect(spaPrefix);
+      }
+
+      // Some clients/proxies hit the base path without a trailing slash (e.g. /chat).
+      // Serve the SPA directly instead of relying on redirects.
+      if (basePath && request.url === basePath) {
+        return reply.sendFile('index.html');
       }
 
       // SPA-fallback only under the configured base path.
