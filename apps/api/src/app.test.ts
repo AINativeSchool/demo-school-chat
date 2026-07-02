@@ -14,7 +14,7 @@ async function registerAlice(app: Awaited<ReturnType<typeof buildApp>>) {
     method: 'POST',
     url: '/api/auth/register',
     payload: {
-      inviteCode: 'SCHOOL01',
+      inviteCode: 'AINATIVESCHOOL',
       username: 'alice',
       password: 'password1',
       displayName: 'Alice',
